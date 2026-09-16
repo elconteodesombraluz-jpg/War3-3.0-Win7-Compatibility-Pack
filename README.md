@@ -48,7 +48,7 @@ The runtime BAT checks the Warcraft hashes before applying any process-local off
 
 ## Installation
 
-1. Close Warcraft III and Battle.net completely. Fully quit Hide.me on systems where it is installed.
+1. Close Warcraft III and Battle.net completely. Fully quit Hide.me or any VPN if installed.
 2. Extract the complete ZIP to a normal writable folder.
 3. Right-click `INSTALL.bat` and choose **Run as administrator**. The BAT can also request elevation itself.
 4. The installer validates the original x64 payload, the x64 system binaries, the x86 system binaries, and the installed provider state. Unexpected existing provider files are not overwritten.
