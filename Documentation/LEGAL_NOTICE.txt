@@ -1,0 +1,23 @@
+Warcraft III 3.0 Windows 7 Compatibility Pack v1.0 - independence notice
+============================================================================
+
+This is an independent compatibility project.
+It is not affiliated with, supported by, or endorsed by Blizzard Entertainment,
+Microsoft, AVG, or OpenAI.
+
+No Blizzard game executable, Battle.net executable, Microsoft system DLL,
+authentication material, account credential, token, or server-side component is
+distributed in this pack.
+
+The pack contains independent compatibility-provider binaries, source/audit
+material for the x86 companion, installation/removal scripts, and a runtime
+launcher that performs documented process-local compatibility changes only on
+exact validated Warcraft III binaries.
+
+Warcraft, Warcraft III, Battle.net and Blizzard Entertainment are trademarks or
+properties of their respective owners. Windows and Microsoft are trademarks or
+properties of Microsoft Corporation. AVG is a trademark or product of its
+respective owner. ChatGPT and OpenAI are trademarks or products of OpenAI.
+
+No software license terms were present in the original binary release material
+provided for packaging. This notice is not a grant of a software license.

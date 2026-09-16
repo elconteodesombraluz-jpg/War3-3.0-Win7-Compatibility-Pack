@@ -1,0 +1,19 @@
+Original public provider release preserved in this pack
+========================================================
+
+Original archive name:
+  War3_Win7_BattleNet_Compat_v1.0.zip
+
+Original archive SHA-256:
+  3db1ba9ccc1b0bcf805b0e849d4df77ffd78d966b50d517187a359b4dc0f85c7
+
+The six files under Provider/x64/ were extracted from that exact archive and are
+preserved byte-for-byte. In particular:
+
+  War3Win7BattleNetCompat.dll
+  SHA-256 d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90
+
+  War3Win7BattleNetCompatInstall.exe
+  SHA-256 748823f38819be8b83d52d568a179e754fdaece3b1532c0ae961b40a1fd4da40
+
+The original component README remains under Provider/x64/README.txt.
