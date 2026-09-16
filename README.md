@@ -103,6 +103,19 @@ The original provider README is kept in that component directory for historical/
 
 The older provider research was independently adapted by Blizzard forum user **Architect** for another Windows 7 system-binary set. Do not mix that provider build with this pack. Users whose system hashes differ should use a build explicitly developed for their exact binaries rather than disabling checks.
 
+Developer references / other Windows 7 binary sets
+
+This repository contains the compatibility pack validated on the exact Windows 7 and Warcraft III binary set documented here.
+
+The following projects are provided as developer references only:
+
+War3-Win7-BattleNet-Compat — the original compatibility-provider project from which this broader pack evolved.
+ArchitectOfRuin/War3-Win7-BattleNet-Compat-Win7-18939 — an independent adaptation of the provider research for a different Windows 7 cryptographic binary set.
+
+These projects are not interchangeable components of this pack, and compatibility between their provider binaries and this package is not guaranteed. Do not mix DLLs, installers, registry state, or components from different variants merely because they address a similar underlying problem.
+
+They are linked primarily so developers working with other Windows 7 builds can compare implementations, hashes, ABI differences, and adaptation strategies.
+
 ## Antivirus
 
 AVG interfered with some compatibility files during development. If an antivirus blocks or quarantines a pack file, do not continue with an incomplete installation. Verify `SHA256SUMS.txt` and allow/restore only the exact release payload.
