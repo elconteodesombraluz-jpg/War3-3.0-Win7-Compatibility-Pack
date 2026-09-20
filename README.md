@@ -4,19 +4,24 @@ This independent compatibility pack is intended to restore the current Warcraft 
 
 It is not affiliated with, supported by, or endorsed by Blizzard Entertainment, Microsoft, AVG, or OpenAI. Warcraft III still launches through the official Battle.net desktop launcher and connects to Blizzard's official services.
 
+The project repository also includes a dedicated **World Editor 3.0 Windows 7 fix ZIP** for the separate World Editor freeze discovered on the same validated Warcraft III build. The World Editor helper is independent from the Battle.net / Schannel provider installation and can be extracted and used separately.
+
 ## What changed from the original provider project
 
-The August 2026 release was a **Windows 7 Battle.net Compatibility Provider**. That solved the first compatibility boundary, but it turned out not to be the whole Warcraft III 3.0 problem. The complete working solution now has three layers:
+The August 2026 release was a **Windows 7 Battle.net Compatibility Provider**. That solved the first compatibility boundary, but it turned out not to be the whole Warcraft III 3.0 problem. The project now covers four compatibility layers:
 
 1. **Windows crypto / Battle.net provider layer.** The original validated x64 Schannel/ncrypt compatibility provider is preserved unchanged. The pack also installs the separately audited x86 companion image needed by the 32-bit Battle.net/Agent Schannel path.
 2. **Warcraft III 3.0 `ClientSdk.dll` / `crypt32.dll` ABI layer.** The current client passes an 88-byte `CERT_CHAIN_ENGINE_CONFIG`; the validated Windows 7 `crypt32.dll` accepts the older layout only up to 80 bytes. The runtime launcher temporarily translates the 88-byte call to an 80-byte stack-local copy. The caller's original structure is never changed. After the two validated startup calls, the original IAT entry is restored and the private hook page is freed.
 3. **Warcraft III 3.0 `war3_loader` fatal-path correction.** On the validated game build, an exact `+0x707` mismatch at the identified predicate routes execution toward a noreturn/fatal path ending in an infinite wait. The launcher performs one guarded four-byte process-local data correction only if that exact mismatch is present. No Warcraft executable or DLL is patched on disk.
+4. **World Editor 3.0 `worldedit_loader` fatal-path correction.** World Editor 3.0.0.24268 was found to reproduce the same internal terminal loader path and the same exact `+0x707` C256 predicate mismatch seen in Warcraft III itself. The dedicated World Editor helper applies one guarded four-byte process-local data correction only when the exact validated `World Editor.exe`, `worldedit_loader.dll`, and runtime predicate are present. No World Editor executable, DLL, or map file is modified on disk.
 
-After READY, the launcher keeps a tiny read-only `ReadProcessMemory` pulse active while Warcraft runs. It was discovered accidentally during diagnostics and made the game feel modestly more responsive on the development machine. It is **not** claimed as a general FPS fix; the mechanism was not proven.
+After READY, the Warcraft launcher keeps a tiny read-only `ReadProcessMemory` pulse active while Warcraft runs. It was discovered accidentally during diagnostics and made the game feel modestly more responsive on the development machine. It is **not** claimed as a general FPS fix; the mechanism was not proven.
 
 ## Not simply a Proton port
 
 A Proton/Wine workaround was useful evidence for understanding the modern `CERT_CHAIN_ENGINE_CONFIG` layout mismatch. The native Windows 7 work then independently traced and corrected the separate `war3_loader` fatal path, built the Windows provider layers, added fail-closed binary guards, and validated the complete path through the official Battle.net launcher. The current pack is therefore a native Windows 7 compatibility project, not a direct Proton binary port.
+
+The later World Editor investigation was also performed directly on native Windows 7. The editor freeze was reproduced independently, traced through `worldedit_loader`, and found to reach the same critical loader machinery and exact `+0x707` predicate mismatch.
 
 ## Supported configuration — fail closed
 
@@ -46,6 +51,14 @@ Do **not** bypass hash checks and do not mix components from another Windows 7 p
 
 The runtime BAT checks the Warcraft hashes before applying any process-local offset. A later Warcraft update is expected to fail closed until it is independently re-audited.
 
+### Validated World Editor runtime build
+
+- World Editor `3.0.0.24268`
+- `World Editor.exe` — `543c089d92307594341d9b655d81a9f5974b9fd73d9ad3952114b793851d848f`
+- `worldedit_loader.dll` — `21d83d9db2a6416c0c03361ff2b847ade879318eb0ad406a88799355762987dd`
+
+The World Editor helper also fails closed. Unsupported executable hashes or an unexpected runtime predicate are not patched.
+
 ## Installation
 
 1. Close Warcraft III and Battle.net completely. Fully quit Hide.me or any VPN if installed.
@@ -68,9 +81,43 @@ Use `START_WARCRAFT_III.bat`. It verifies the installed provider hashes, provide
 
 The console remains open while Warcraft is running because the lightweight read-only pulse is active. It closes shortly after Warcraft exits. The runtime log is written under `Runtime\WAR3_WIN7_ONLINE_FIX_v1.0.txt`.
 
+## World Editor fix
+
+A dedicated **World Editor 3.0 Windows 7 fix ZIP** is included in the project repository.
+
+This helper is separate from the Battle.net / Schannel provider layer. Users who only need the World Editor fix do not need to reinstall or modify the main compatibility provider.
+
+Extract the World Editor fix ZIP to a normal writable folder.
+
+Before launching it, open `WorldEditorFix.ini` with a text editor and set `WorldEditorPath=` to the actual location of your `World Editor.exe`.
+
+Example:
+
+`WorldEditorPath=E:\Games\War3\Warcraft III\_retail_\x86_64\World Editor.exe`
+
+The path must match your own Warcraft III installation. Warcraft III does not need to be installed on `C:`.
+
+Then run:
+
+`START_WORLD_EDITOR_FIXED.bat`
+
+The helper deliberately does **not** launch `World Editor.exe` directly. On the validated Windows 7 system, directly starting the executable invoked Battle.net and produced additional editor problems.
+
+Instead, the helper asks Windows to open the bundled `dummy.w3m` through the normal `.w3m` file association. This reproduces the clean standalone World Editor launch path.
+
+The helper then attaches to the resulting World Editor process, verifies that it matches the executable path configured in `WorldEditorFix.ini`, validates the exact supported `World Editor.exe` and `worldedit_loader.dll` hashes, checks the exact `+0x707` runtime predicate, applies the guarded four-byte process-local correction, and verifies the corrected value.
+
+Battle.net **may remain open while the World Editor fix is used**. The helper does not require Battle.net to be closed, allowing a mapmaker to move between editing a map and testing it in Warcraft III without repeatedly shutting down and restarting Battle.net.
+
+Once **WORLD EDITOR FIX ACTIVE** is displayed, the bundled dummy map may be closed or replaced by opening any other map from inside the same World Editor process.
+
+The correction affects only the currently running World Editor process. It disappears when World Editor exits.
+
 ## Verification
 
 `VERIFY_INSTALLATION.bat` checks the installed x64 and x86 provider hashes, the x64 CNG provider registration, and the runtime BAT integrity. It does not modify the system.
+
+The World Editor helper performs its own runtime verification before writing anything. It checks the exact supported executable hashes and the exact live predicate state, then verifies that the post-write value matches the expected value with a zero delta before reporting the fix active.
 
 ## Removal
 
@@ -81,11 +128,15 @@ The console remains open while Warcraft is running because the lightweight read-
 
 The Warcraft runtime correction itself is process-local; no patched Warcraft file remains after the game exits.
 
+The World Editor helper does not install anything persistently. Its four-byte correction is process-local and disappears when World Editor exits. Deleting the extracted World Editor fix files is sufficient to remove that helper.
+
 ## What the pack does not do
 
 It does not redirect Battle.net traffic, emulate Blizzard authentication, fabricate credentials/tokens, bypass account authentication, redirect Warcraft III to another server, replace Microsoft system DLLs, distribute Blizzard executables, or patch Blizzard files on disk.
 
 It **does** temporarily change four bytes of validated Warcraft process memory under an exact predicate/hash guard. That is intentionally documented rather than hidden behind the older provider-only wording that said the project did not patch Warcraft at all.
+
+The World Editor helper follows the same principle. It does not modify `World Editor.exe`, `worldedit_loader.dll`, or map files on disk. It temporarily changes one validated four-byte process-memory field only when the exact supported binary hashes and runtime predicate are present.
 
 ## Original provider preservation
 
@@ -99,6 +150,8 @@ The original x64 runtime provider DLL remains:
 
 The original provider README is kept in that component directory for historical/technical reference. Its statement that the provider itself does not patch Warcraft remains true for that component; the complete pack now additionally contains the documented process-local runtime fix.
 
+The World Editor fix is provided as an additional dedicated ZIP in the project repository and does not alter the preserved original provider files.
+
 ## Other Windows 7 binary sets
 
 The older provider research was independently adapted by Blizzard forum user **Architect** for another Windows 7 system-binary set. Do not mix that provider build with this pack. Users whose system hashes differ should use a build explicitly developed for their exact binaries rather than disabling checks.
@@ -109,7 +162,7 @@ This repository contains the compatibility pack validated on the exact Windows 7
 
 The following projects are provided as developer references only:
 
-War3-Win7-BattleNet-Compat — the original compatibility-provider project from which this broader pack evolved.
+War3-Win7-BattleNet-Compat — the original compatibility-provider project from which this broader pack evolved.  
 ArchitectOfRuin/War3-Win7-BattleNet-Compat-Win7-18939 — an independent adaptation of the provider research for a different Windows 7 cryptographic binary set.
 
 These projects are not interchangeable components of this pack, and compatibility between their provider binaries and this package is not guaranteed. Do not mix DLLs, installers, registry state, or components from different variants merely because they address a similar underlying problem.
@@ -120,8 +173,12 @@ They are linked primarily so developers working with other Windows 7 builds can 
 
 AVG interfered with some compatibility files during development. If an antivirus blocks or quarantines a pack file, do not continue with an incomplete installation. Verify `SHA256SUMS.txt` and allow/restore only the exact release payload.
 
+The dedicated World Editor fix ZIP contains its own integrity hashes. If an antivirus interferes with one of its files, verify the helper archive and its `SHA256SUMS.txt` before restoring or allowing anything.
+
 ## Project / support scope
 
 This project was developed through a long iterative investigation with ChatGPT by OpenAI and repeated experiments on the affected Windows 7 machine. The publisher is a novelist rather than a Windows internals or security engineer. The technical notes and hashes are included so experienced users can inspect and reproduce the work; individual support for arbitrary Windows builds cannot be guaranteed.
 
 See `Documentation/TECHNICAL_NOTES.md`, `Documentation/CHANGELOG.md`, and `Documentation/LEGAL_NOTICE.txt`.
+
+The included World Editor fix ZIP contains its own usage instructions and integrity hashes.
