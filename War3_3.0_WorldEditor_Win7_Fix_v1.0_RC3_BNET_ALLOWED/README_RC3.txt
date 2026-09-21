@@ -6,7 +6,7 @@ The ShellOpen / process-attach / C256 patch logic has not been refactored.
 
 For this validation copy, WorldEditorFix.ini is intentionally preserved from the
 successful test and therefore contains:
-E:\Games\War3\Warcraft III\_retail_\x86_64\World Editor.exe
+C:\Games\War3\Warcraft III\_retail_\x86_64\World Editor.exe
 
 Test:
 1. Close World Editor. Battle.net may remain open.
