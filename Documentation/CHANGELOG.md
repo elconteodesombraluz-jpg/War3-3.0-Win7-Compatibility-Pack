@@ -1,5 +1,20 @@
 # Changelog
 
+## Warcraft III 3.0 Windows 7 Compatibility Pack v1.1 — 2026-10-07
+
+- Re-audited the Warcraft runtime after the October 7, 2026 Blizzard update changed `ClientSdk.dll` and `war3_loader.dll`.
+- Preserved the validated x64/x86 Windows provider layer unchanged.
+- Confirmed the `CERT_CHAIN_ENGINE_CONFIG` 88→80 compatibility translation is still required; the ClientSdk certificate IAT RVA remains `0x00767170`.
+- Removed the previous build's raw C256 `+0x707` correction.
+- Identified the new `object+0x2C` field as an encoded millisecond timebase used by a 30,000 ms fatal-path threshold.
+- Added guarded initial timebase refresh after certificate call #1.
+- Added guarded runtime heartbeat maintenance: revalidate approximately every 250 ms and write only when decoded age reaches 10,000 ms.
+- Added immediate readback verification for every four-byte process-local heartbeat write.
+- Kept exact hash/object/signature fail-closed guards.
+- Removed the v1.0 experimental read-only ~1 ms responsiveness pulse from the new runtime.
+- Validated map download, private online game creation, a completed online game, more than 15 minutes of heartbeat operation, and normal shutdown.
+- Marked the previous World Editor helper as pending separate re-audit for the October build.
+
 ## Warcraft III 3.0 Windows 7 Compatibility Pack v1.0 — 2026-09-15
 
 - Reframed the project from a provider-only utility into a complete Warcraft III 3.0 Windows 7 compatibility pack.

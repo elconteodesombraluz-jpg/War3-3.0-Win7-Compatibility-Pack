@@ -11,14 +11,14 @@ set "X64INST=%WINDIR%\System32\War3Win7BattleNetCompat.dll"
 set "X86INST=%WINDIR%\SysWOW64\War3Win7BattleNetCompat.dll"
 set "X64HASH=d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90"
 set "X86HASH=e32754c90d6e44844103b02c681e4e1b7a09fc5ae349f2e1a2abc5ce304496ef"
-title Warcraft III 3.0 Windows 7 Compatibility Pack - removal
+title Warcraft III 3.0 Windows 7 Compatibility Pack v1.1 - removal
 cd /d "%ROOT%"
 
->"%REPORT%" echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.0 - REMOVE
+>"%REPORT%" echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.1 - REMOVE
 >>"%REPORT%" echo =============================================================
 
 echo.
-echo Warcraft III 3.0 Windows 7 Compatibility Pack - removal
+echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.1 - removal
 echo =========================================================
 echo Persistent provider components will be removed.
 echo The Warcraft runtime fix itself is process-local and leaves no patched game file behind.

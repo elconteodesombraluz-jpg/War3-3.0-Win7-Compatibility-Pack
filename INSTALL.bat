@@ -12,14 +12,14 @@ set "X64INST=%WINDIR%\System32\War3Win7BattleNetCompat.dll"
 set "X86INST=%WINDIR%\SysWOW64\War3Win7BattleNetCompat.dll"
 set "X64HASH=d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90"
 set "X86HASH=e32754c90d6e44844103b02c681e4e1b7a09fc5ae349f2e1a2abc5ce304496ef"
-title Warcraft III 3.0 Windows 7 Compatibility Pack v1.0
+title Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
 cd /d "%ROOT%"
 
->"%REPORT%" echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.0 - INSTALL
+>"%REPORT%" echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.1 - INSTALL
 >>"%REPORT%" echo ==============================================================
 
 echo.
-echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.0
+echo Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
 echo ======================================================
 echo Installs the persistent Windows compatibility-provider layer.
 echo Warcraft III files on disk are never modified.

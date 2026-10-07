@@ -1,80 +1,118 @@
-# Technical notes — Warcraft III 3.0 Windows 7 Compatibility Pack v1.0
+# Technical notes — Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
 
-## 1. Architecture
+## 1. Persistent provider layer
 
-The working native-Windows-7 solution is composed of three independent compatibility layers. Keeping them separate matters because each addresses a different failure mode and each has a different lifetime.
+The x64 and x86 Windows compatibility providers are unchanged from v1.0. They restore the Schannel/ncrypt provider-interface path required by the validated Battle.net/Agent configuration.
 
-### Layer A — Schannel / ncrypt provider compatibility
-
-The initial Battle.net failure was isolated to the Windows Schannel/ncrypt provider-interface boundary. On the validated Windows 7 system, the historical compatible SSL provider path exposes the older table while the current ncrypt path expects the version-3 extension. The original x64 provider preserves slots 0..25 and exposes the real native callbacks used in slots 26 and 27 (`SslComputeSessionHash`, `SslGeneratePreMasterKey`). It preserves real nonzero error statuses and returns `NTE_NOT_SUPPORTED` if required symbols cannot be resolved.
-
-The Battle.net/Agent path is 32-bit. A PE32/i386 companion build was therefore reconstructed and independently audited for the corresponding SysWOW64 system binaries. The x86 image is copied to `%WINDIR%\SysWOW64\War3Win7BattleNetCompat.dll`. It does not create a second CNG registration: the original provider registration is preserved, while Windows DLL redirection supplies the architecture-appropriate image to 32-bit clients.
-
-On the validated machine, closing Hide.me completely and installing the x86 companion restored the x86 Schannel/curl path to HTTP 200 and allowed the current Battle.net Agent/launcher path to update and install Warcraft III 3.0.
-
-## 2. ClientSdk / crypt32 ABI compatibility
-
-Warcraft III 3.0.0.24268 ships `ClientSdk.dll` that passes an 88-byte `CERT_CHAIN_ENGINE_CONFIG` to `CertCreateCertificateChainEngine`. Native Windows 7 `crypt32.dll` on the validated system accepts the legacy 64/80-byte layouts and rejects the modern 88/96-byte forms with `E_INVALIDARG`.
-
-The runtime launcher finds the `ClientSdk.dll!CertCreateCertificateChainEngine` IAT entry from the exact on-disk PE rather than relying on a hard-coded virtual address. It then installs a small process-local wrapper. When `cbSize != 88`, the call is forwarded without translation. When `cbSize == 88`, the wrapper copies the first 80 bytes to a stack-local structure, sets the local `cbSize` to 80, and calls the real Windows 7 API on that copy. The caller-owned 88-byte structure is never modified.
-
-Exactly two translated startup calls were observed on the validated build and both return TRUE. After the second successful translated call, the original IAT pointer is restored exactly. After a short in-flight safety delay, the private executable hook page is released with `MEM_RELEASE`.
-
-This 88→80 ABI translation is the part of the investigation that was initially informed by the Proton/Wine compatibility behavior. The implementation here is a native Windows 7 process-local shim.
-
-## 3. Independent war3_loader fatal-path investigation
-
-After the certificate ABI issue was fixed, online transitions could still route Warcraft into a permanent freeze. Network activity remained alive; the Warcraft GUI thread instead ended in `NtWaitForSingleObject` on a non-signaled auto-reset event with an infinite timeout.
-
-The repeated terminal stack was:
-
-`ntdll!NtWaitForSingleObject → KERNELBASE!WaitForSingleObjectEx → war3_loader+F4DAA1 → war3_loader+C28478 → war3_loader+1F90BCB`
-
-Further static/live analysis established that this is a noreturn/fatal route through the flattened `C24140` dispatcher, not a missing normal producer for the final event. The recovered fatal-state path included:
-
-`0x39411D30 → 0x5D245464 → 0x01573B0D → 0x18821727 → C268BB → 0x6A49A769 → C27AAF → C28462 → F4C6F0 → infinite wait`
-
-The first useful arithmetic discriminator was isolated around `C25698..C256C2`. On fatal runs the computed value was `0x0E21089A` while the object field held `0x0E210193`, an exact difference of `+0x707`. That mismatch routed execution into the fatal state chain.
-
-## 4. Guarded C256 correction
-
-The validated runtime launcher waits until translated certificate call #1 succeeds, then locates the same process-local object and tests the field. It writes exactly four bytes **only** when all of the following are true:
-
-- `ClientSdk.dll` SHA-256 matches the validated build;
-- `war3_loader.dll` SHA-256 matches the validated build;
-- the current object value is `0x0E210193`;
-- the computed expected value is `0x0E21089A`;
-- the exact delta is `0x707`.
-
-The new process-local value is `0x0E21089A`. No `war3_loader` code byte is modified. The game files on disk are untouched.
-
-Applying the correction immediately after certificate call #1, rather than waiting for certificate call #2, proved important on runs where the pre-menu online transition could otherwise enter the bad path before the second call.
-
-## 5. Read-only performance pulse
-
-During diagnostics, a high-cadence external watcher unexpectedly made the Reforged-era startup/menu feel noticeably more responsive on the validated Windows 7 machine. Controlled A/B tests separated the compatibility fix from the pulse.
-
-The release uses the lightest variant that produced a useful subjective benefit: one read-only 4-byte `ReadProcessMemory` against the already-corrected C256 value followed by `Thread.Sleep(1)`. It runs only after READY and stops when Warcraft exits.
-
-Telemetry did **not** show a CPU-frequency increase: the measured CPU stayed at the same reported frequency, and Windows timer resolution was already approximately 1 ms. Additional USER32/RPM experiments did not yield a sufficiently clean causal mechanism. Therefore the pack makes no FPS or universal performance claim. The pulse is retained only because it was harmless in the validated runs and improved the development-machine experience.
-
-## 6. Cleanup and lifetime
-
-The provider DLLs are persistent Windows compatibility components and require explicit installation/removal plus a reboot when their state changes.
-
-The Warcraft ABI shim and C256 correction are process-local. The IAT hook is removed during startup; its private executable page is freed. The C256 data change disappears when Warcraft exits. The read-only pulse stops at process exit. No Warcraft file is rewritten.
-
-## 7. Build identity
-
-Validated Warcraft runtime:
-
-- Warcraft III 3.0.0.24268 — Forsaken Kingdom
-- `ClientSdk.dll`: `3a8762f6641f39da8099009adccfe1b2f9aa9613defe98273e38341de500b10e`
-- `war3_loader.dll`: `e32431e26f58d1201be3f48baed485114227864d8c6b871eae8e9528241ec8e9`
-
-Validated provider identities:
+Validated provider DLLs:
 
 - x64: `d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90`
 - x86: `e32754c90d6e44844103b02c681e4e1b7a09fc5ae349f2e1a2abc5ce304496ef`
 
-All components fail closed when their documented binary identity does not match.
+v1.1 changes only the Warcraft runtime layer.
+
+## 2. ClientSdk certificate ABI compatibility
+
+The October 7, 2026 `ClientSdk.dll` still imports `CRYPT32!CertCreateCertificateChainEngine`, with the IAT slot at RVA `0x00767170`.
+
+The caller supplies an 88-byte `CERT_CHAIN_ENGINE_CONFIG`. The validated Windows 7 `crypt32.dll` accepts the older layout only up to 80 bytes. The runtime launcher therefore intercepts only the validated startup calls and, when `cbSize == 88`, passes a stack-local 80-byte copy with `cbSize` rewritten to 80. The caller-owned 88-byte structure is never modified.
+
+After two successful translated calls, the original IAT pointer is restored exactly. Two seconds later the temporary executable hook page is freed.
+
+## 3. October 7 loader change
+
+The v1.0 Warcraft runtime used a guarded four-byte correction for an exact `+0x707` mismatch in the old `C25698..C256C2` predicate. The October 7 update changed the loader enough that transplanting `+0x707` was invalid.
+
+Validated new hashes:
+
+- `ClientSdk.dll`: `04f798ac211b9fea1b741b4f1d520d7e5b3cf5f038241c909b7429b02a4cf134`
+- `war3_loader.dll`: `df44a65ef76ac2159f531693a751de22807dd454778090475292092c111e6461`
+
+The new frozen GUI thread repeatedly terminated in:
+
+`ntdll+0x698CA → KERNELBASE+0x10AC → KERNELBASE+0x2D30 → war3_loader+0xEB442D → war3_loader+0xE4B15B → war3_loader+0x11A8E89`
+
+This is the same class of terminal loader wait as the previous build, but the decisive arithmetic is different.
+
+## 4. Regenerated object and encoded timebase
+
+The relevant process-local object is decoded from regenerated loader globals. In the validated build the object relationship is:
+
+`obj = ((g20DF278 XOR 0x10ADFFD4851EEA22) - g20DF278 + 0x5488CB87A2C1A6B0) XOR g218B878`
+
+The critical dword is `object+0x2C`.
+
+The fatal frame established:
+
+- `decodedStored = frame[0x40] XOR frame[0x4C]`
+- `elapsed = frame[0x48] - decodedStored`
+- `frame[0xA0] == elapsed`
+- `threshold = frame[0xA8] - frame[0xA4]`
+- `threshold == 0x7530 == 30000 ms`
+- the fatal branch is taken when `frame[0xA0] >= threshold`
+
+Across validation runs, `frame[0x4C]` was `0xFF391B88`, and the live field decodes as:
+
+`storedTick = object+0x2C XOR 0xFF391B88`
+
+The decoded value tracks the Windows millisecond tick counter.
+
+The object is additionally guarded by the observed `object+0x60` signature:
+
+`object+0x60 XOR 0x2FE40E77 == 0x00000909`
+
+## 5. Why the one-shot v1.1 prototype was insufficient
+
+A one-time refresh after certificate call #1 allowed the game to pass the initial online transition, complete significantly more navigation and begin downloading a map.
+
+However, once the injected timestamp itself aged past 30 seconds, the fatal frame again captured the stale timestamp before the game's own later update. One validated failure showed:
+
+- stored timestamp age in fatal frame: `38423 ms`
+- threshold: `30000 ms`
+- branch relation: true
+
+The game's own writer refreshed `object+0x2C` shortly afterward, but by then the stale value had already been copied into the fatal frame.
+
+## 6. v1.1 heartbeat correction
+
+The final v1.1 runtime keeps the same exact-hash / object-signature guards and maintains the encoded timebase with a large margin below the fatal threshold.
+
+Startup:
+
+1. translated certificate call #1 succeeds;
+2. the regenerated object and signature are validated;
+3. if the decoded timestamp is plausibly recent, the launcher writes `GetTickCount() XOR 0xFF391B88` to `object+0x2C`;
+4. the four-byte write is immediately read back and verified;
+5. translated certificate call #2 succeeds;
+6. the original IAT is restored and the hook page is freed;
+7. an 8-second stabilization window is kept before READY.
+
+Runtime:
+
+- approximately every 250 ms, the object/signature are revalidated;
+- if decoded age is below 10,000 ms, no write occurs;
+- when decoded age reaches 10,000 ms, exactly four process-local data bytes are refreshed;
+- decoded ages above 120,000 ms fail closed instead of being blindly rewritten;
+- every write receives an immediate readback check.
+
+No `war3_loader` code byte is patched.
+
+## 7. Validation
+
+The diagnostic heartbeat test ran for approximately 930.94 seconds after the certificate stage and performed 92 guarded refreshes without a fatal hang. During that session the user completed an online map download, left the lobby flow, created a private online game, played the game to completion, and exited normally.
+
+A release-candidate cleanup run then validated normal shutdown handling without a false error:
+
+`WARCRAFT_EXIT=True ... teardownRaceHandled=False`
+
+## 8. v1.0 performance pulse
+
+The old v1.0 release retained a separate read-only ~1 ms `ReadProcessMemory` pulse because it subjectively improved responsiveness on the earlier build.
+
+That pulse is not part of v1.1. The October update changed the runtime path and the new heartbeat mechanism was validated independently. v1.1 avoids retaining an unrelated experimental behavior that was not revalidated on the new build.
+
+## 9. Cleanup and lifetime
+
+The Windows provider DLLs are persistent components and require explicit installation/removal plus a reboot when their state changes.
+
+The certificate hook and timebase writes are process-local. The IAT hook is removed during startup, the private hook page is freed, and all process-memory changes disappear when Warcraft exits. No Warcraft file is rewritten.

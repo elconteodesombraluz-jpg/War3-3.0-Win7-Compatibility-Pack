@@ -5,10 +5,10 @@ set "PS=%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if defined PROCESSOR_ARCHITEW6432 set "PS=%WINDIR%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
 set "HASHSTATE=%ROOT%Tools\HashState.ps1"
 set "REGSTATE=%ROOT%Tools\ProviderRegistrationState.ps1"
-set "RUNTIME=%ROOT%Runtime\War3_Win7_Online_Fix_v1.0.bat"
+set "RUNTIME=%ROOT%Runtime\War3_Win7_Online_Fix_v1.1.bat"
 set "X64INST=%WINDIR%\System32\War3Win7BattleNetCompat.dll"
 set "X86INST=%WINDIR%\SysWOW64\War3Win7BattleNetCompat.dll"
-title Warcraft III 3.0 Windows 7 Compatibility Pack v1.0
+title Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
 
 for %%P in ("Hide.me.exe") do (
   tasklist /FI "IMAGENAME eq %%~P" 2>NUL | find /I "%%~P" >NUL
@@ -19,7 +19,7 @@ for %%P in ("Hide.me.exe") do (
   )
 )
 
-"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%X64INST%" -Expected "d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90"
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%X64INST%" -Expected "12d91f8891620fd30069e85aef74e0dd8c0d36d9fd3e67997a45be73db88a195"
 if not "%ERRORLEVEL%"=="10" (
   echo ERROR: the validated x64 provider is not installed. Run INSTALL.bat first.
   pause

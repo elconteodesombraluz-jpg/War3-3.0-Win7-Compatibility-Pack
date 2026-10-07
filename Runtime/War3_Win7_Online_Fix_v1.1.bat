@@ -1,30 +1,31 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions
 set "SELF=%~f0"
-set "OUT=%~dp0WAR3_WIN7_ONLINE_FIX_v1.0.txt"
-set "PS1=%TEMP%\WAR3_WIN7_ONLINE_FIX_v1_0_%RANDOM%_%RANDOM%.ps1"
-title Warcraft III 3.0 - Windows 7 Online Fix v1.0
+set "OUT=%~dp0WAR3_WIN7_ONLINE_FIX_v1.1.txt"
+set "PS1=%TEMP%\WAR3_WIN7_ONLINE_FIX_v1_1_%RANDOM%_%RANDOM%.ps1"
+title Warcraft III 3.0 - Windows 7 Online Fix v1.1
 
 echo.
-echo Warcraft III 3.0 - Windows 7 ONLINE FIX v1.0
+echo Warcraft III 3.0 - Windows 7 ONLINE FIX v1.1
 echo ==========================================================
-echo Portable compatibility fix for Warcraft III 3.0.0.24268 on Windows 7 x64.
+echo Release-candidate compatibility fix for the October 2026 Warcraft III 3.0 build on Windows 7 x64.
 echo.
 echo What it does:
 echo   - auto-detects Warcraft III and Battle.net install paths
 echo   - launches Warcraft III through the official Battle.net launcher
 echo   - translates ClientSdk CERT_CHAIN_ENGINE_CONFIG cbSize 88 to a stack-local 80-byte Win7 copy
-echo   - after certificate call #1, applies the guarded C256 +0x707 4-byte process-local correction
+echo   - after certificate call #1, validates and refreshes the new encoded online timebase
 echo   - after certificate call #2, restores the original ClientSdk IAT and frees the startup hook page
-echo   - after READY, keeps only the light v3s read-only 4-byte ~1 ms performance pulse
-echo   - exits automatically shortly after Warcraft closes
+echo   - while Warcraft runs, refreshes the validated 4-byte timebase only when its decoded age reaches 10 seconds
+echo   - shows the same in-game green ONLINE READY banner and exits automatically after Warcraft closes
 echo.
 echo Safety guards:
-echo   - exact ClientSdk.dll SHA-256 required
-echo   - exact war3_loader.dll SHA-256 required
-echo   - C256 write occurs only for the exact historical +0x707 mismatch
-echo   - no Warcraft code bytes are patched
-echo   - no Event API is hooked or signaled
+echo   - exact NEW ClientSdk.dll SHA-256 required
+echo   - exact NEW war3_loader.dll SHA-256 required
+echo   - decoded object pointer and object+0x60 -^> 0x909 signature are revalidated
+echo   - heartbeat writes only occur for a plausible decoded age of 10,000..120,000 ms
+echo   - each correction is exactly 4 process-local DATA bytes with immediate readback verification
+echo   - no Warcraft code bytes are patched; no game file is modified on disk
 echo.
 echo BEFORE RUNNING: Warcraft closed, Battle.net signed in, VPN/Hide.me off.
 echo Install drive/path does not matter; the fix auto-detects it.
@@ -62,8 +63,8 @@ exit /b 0
 #===RELEASE_PS===
 $ErrorActionPreference='Stop'
 $Out=$env:OUT
-$ExpectedClientSdkSha='3a8762f6641f39da8099009adccfe1b2f9aa9613defe98273e38341de500b10e'
-$ExpectedWar3LoaderSha='e32431e26f58d1201be3f48baed485114227864d8c6b871eae8e9528241ec8e9'
+$ExpectedClientSdkSha='04f798ac211b9fea1b741b4f1d520d7e5b3cf5f038241c909b7429b02a4cf134'
+$ExpectedWar3LoaderSha='df44a65ef76ac2159f531693a751de22807dd454778090475292092c111e6461'
 $L=New-Object System.Collections.Generic.List[string]
 
 function O([string]$s=''){
@@ -149,8 +150,6 @@ function FindImportIatRva([string]$path,[string]$wantDll,[string]$wantFn){
 $native=@'
 using System;
 using System.Runtime.InteropServices;
-using System.Diagnostics;
-using System.Threading;
 
 public static class W3ReleaseNative
 {
@@ -183,45 +182,18 @@ public static class W3ReleaseNative
     [DllImport("kernel32.dll", SetLastError=true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CloseHandle(IntPtr hObject);
-}
 
-public sealed class W3ReleasePulseResult
-{
-    public long Polls;
-    public long ReadFailures;
-    public long ElapsedMs;
-    public uint LastValue;
-}
+    [DllImport("kernel32.dll")]
+    public static extern uint GetTickCount();
 
-public static class W3ReleasePulse
-{
-    public static W3ReleasePulseResult Run(IntPtr h, ulong address, int maxMs)
+    public static ulong DecodeNewCandidateObject(ulong g218b878, ulong g20df278)
     {
-        W3ReleasePulseResult r = new W3ReleasePulseResult();
-        Stopwatch sw = Stopwatch.StartNew();
-        byte[] b = new byte[4];
-        IntPtr got;
-        int consecutiveFailures = 0;
-        while (sw.ElapsedMilliseconds < maxMs)
+        unchecked
         {
-            bool ok = W3ReleaseNative.ReadProcessMemory(
-                h, new IntPtr(unchecked((long)address)), b, 4, out got);
-            if (ok && got.ToInt64() == 4)
-            {
-                r.Polls++;
-                r.LastValue = BitConverter.ToUInt32(b, 0);
-                consecutiveFailures = 0;
-            }
-            else
-            {
-                r.ReadFailures++;
-                consecutiveFailures++;
-                if (consecutiveFailures >= 64) break;
-            }
-            Thread.Sleep(1);
+            ulong x = (g20df278 ^ 0x10ADFFD4851EEA22UL);
+            x = x - g20df278 + 0x5488CB87A2C1A6B0UL;
+            return x ^ g218b878;
         }
-        r.ElapsedMs = sw.ElapsedMilliseconds;
-        return r;
     }
 }
 '@
@@ -335,86 +307,134 @@ function WriteIatPointer([IntPtr]$h,[Int64]$iatAddr,[Int64]$ptr){
     [void][W3ReleaseNative]::FlushInstructionCache($h,[IntPtr]$iatAddr,[IntPtr]8)
 }
 
-$script:C256PatchApplied=$false
-$script:C256PatchObject=[uint64]0
-$script:C256PatchOriginal=[uint32]0
-$script:C256PatchExpected=[uint32]0
-$script:C256PatchMs=[long]-1
-$script:C256ProbeLastMs=[long]-10000
-$script:C256ProbeLastSummary=''
+# UInt32 helpers that remain safe on Windows PowerShell 2.
+$script:U32Mask=[UInt64]4294967295
+$script:U32Mod=[UInt64]4294967296
 
-function C256ComputeExpected([uint32]$g210c0b0){
-    [uint64]$M=[uint64]4294967295
-    [uint64]$a4=(([uint64]$g210c0b0+[uint64]3395345826)-band $M)
-    [uint64]$invA4=($M -bxor $a4)
-    [uint64]$a8=((($invA4 -band [uint64]1950337290)*11)-band $M)
-    [uint64]$ac=(((($a4 -bor [uint64]1950337290)*11))-band $M)
-    [uint64]$b0=(($a4 -bxor [uint64]1950337290)-band $M)
-    [uint64]$b4=((($a4 -band [uint64]2344630005)*9)-band $M)
-    [uint64]$b8=($a4 -band [uint64]1950337290)
-    [uint64]$bc=(($ac+[uint64]85899345920-(($b8*11)+$b4+$b0))-band $M)
-    [uint64]$x=(($bc+[uint64]4294967296-$a8)-band $M)
-    [uint64]$c0=(($x -bxor [uint64]3494960644)-band $M)
-    [uint64]$c4=(($x -bxor [uint64]1129164038)-band $M)
-    [uint64]$c8=(($c4+[uint64]1663572473)-band $M)
-    [uint64]$cc=(([uint64]187680546+[uint64]4294967296-$x)-band $M)
-    [uint64]$expected=((($cc -bxor $c4 -bxor $c8)+$c0+$a4)-band $M)
-    return [uint32]$expected
+function Sub32([UInt32]$a,[UInt32]$b){
+    [UInt64]$x=[UInt64]$a+$script:U32Mod-[UInt64]$b
+    return [UInt32]($x -band $script:U32Mask)
+}
+function Xor32([UInt32]$a,[UInt32]$b){
+    [UInt64]$x=([UInt64]$a -bxor [UInt64]$b)
+    return [UInt32]($x -band $script:U32Mask)
+}
+function ReadU32Remote([IntPtr]$h,[UInt64]$addr){
+    return [BitConverter]::ToUInt32((ReadRemote $h (I64FromU64 $addr) 4),0)
+}
+function ReadU64Remote([IntPtr]$h,[UInt64]$addr){
+    return [BitConverter]::ToUInt64((ReadRemote $h (I64FromU64 $addr) 8),0)
 }
 function GetWar3LoaderBase($p){
     try{
         $p.Refresh()
         $m=$p.Modules | Where-Object {$_.ModuleName -ieq 'war3_loader.dll'} | Select-Object -First 1
-        if($null-eq$m){return [uint64]0}
-        return [uint64]$m.BaseAddress.ToInt64()
-    }catch{return [uint64]0}
+        if($null-eq$m){return [UInt64]0}
+        return [UInt64]$m.BaseAddress.ToInt64()
+    }catch{return [UInt64]0}
 }
-function TryC256Patch($p,[IntPtr]$h,[long]$nowMs,[bool]$strict){
-    if($script:C256PatchApplied){return $true}
-    [uint64]$wb=GetWar3LoaderBase $p
-    if($wb-eq0){return $false}
-    try{
-        [uint64]$raw=[BitConverter]::ToUInt64((ReadRemote $h (I64FromU64 ($wb+[uint64]0x021BCA68)) 8),0)
-        [byte[]]$kb=[byte[]](0x6A,0xD6,0x77,0x21,0xB7,0xD0,0x9A,0xD1)
-        [uint64]$key=[BitConverter]::ToUInt64($kb,0)
-        [uint64]$obj=($raw -bxor $key)
-        if($obj-lt[uint64]0x10000 -or $obj-ge[uint64]0x0000800000000000){return $false}
-        [uint32]$actual=[BitConverter]::ToUInt32((ReadRemote $h (I64FromU64 ($obj+[uint64]0x20)) 4),0)
-        [uint32]$g=[BitConverter]::ToUInt32((ReadRemote $h (I64FromU64 ($wb+[uint64]0x0210C0B0)) 4),0)
-        [uint32]$expected=C256ComputeExpected $g
-        [uint64]$M=[uint64]4294967295
-        [uint32]$delta=[uint32]((([uint64]$expected+[uint64]4294967296-[uint64]$actual)-band $M))
-        $summary=('obj=0x{0:X16} actual=0x{1:X8} expected=0x{2:X8} delta=0x{3:X8}' -f $obj,$actual,$expected,$delta)
-        if($summary-ne$script:C256ProbeLastSummary){O ('C256_PROBE t={0}ms {1}' -f $nowMs,$summary);$script:C256ProbeLastSummary=$summary}
-        if($actual-eq$expected){
-            $script:C256PatchApplied=$true
-            $script:C256PatchObject=$obj
-            $script:C256PatchOriginal=$actual
-            $script:C256PatchExpected=$expected
-            $script:C256PatchMs=$nowMs
-            O 'C256_ALREADY_CORRECT=True'
-            return $true
-        }
-        if($delta-ne[uint32]0x00000707){
-            if($strict){throw ('C256 exact +0x707 guard failed; observed delta=0x{0:X8}' -f $delta)}
-            return $false
-        }
-        WriteRemote $h (I64FromU64 ($obj+[uint64]0x20)) ([BitConverter]::GetBytes([uint32]$expected))
-        [uint32]$verify=[BitConverter]::ToUInt32((ReadRemote $h (I64FromU64 ($obj+[uint64]0x20)) 4),0)
-        if($verify-ne$expected){throw 'C256 4-byte write verification failed.'}
-        $script:C256PatchApplied=$true
-        $script:C256PatchObject=$obj
-        $script:C256PatchOriginal=$actual
-        $script:C256PatchExpected=$expected
-        $script:C256PatchMs=$nowMs
-        O ('C256_PATCH_APPLIED=True t={0}ms addr=0x{1:X16} old=0x{2:X8} new=0x{3:X8} bytes=4 codePatched=False' -f $nowMs,($obj+[uint64]0x20),$actual,$expected)
-        return $true
-    }catch{
+
+$script:TimebaseReady=$false
+$script:TimebaseObject=[UInt64]0
+$script:TimebaseAddr=[UInt64]0
+$script:TimebaseOriginalRaw=[UInt32]0
+$script:TimebaseLastRaw=[UInt32]0
+$script:TimebaseInitialAge=[UInt32]0
+$script:TimebaseWrites=[long]0
+$script:TimebaseProbeLastMs=[long]-10000
+
+function Resolve-TimebaseState($p,[IntPtr]$h){
+    [UInt64]$wb=GetWar3LoaderBase $p
+    if($wb-eq0){return $null}
+
+    [UInt64]$g1=ReadU64Remote $h ($wb+[UInt64]0x0218B878)
+    [UInt64]$g2=ReadU64Remote $h ($wb+[UInt64]0x020DF278)
+    [UInt64]$obj=[W3ReleaseNative]::DecodeNewCandidateObject($g1,$g2)
+    if($obj-lt[UInt64]0x10000 -or $obj-ge[UInt64]0x0000800000000000){return $null}
+
+    [UInt32]$raw=ReadU32Remote $h ($obj+[UInt64]0x2C)
+    [UInt32]$v60=ReadU32Remote $h ($obj+[UInt64]0x60)
+    [UInt32]$trapSig=Xor32 $v60 ([UInt32]803475063) # 0x2FE40E77
+    if($trapSig-ne[UInt32]2313){return $null}       # 0x00000909
+
+    [UInt32]$key=[UInt32]4281932680                # 0xFF391B88
+    [UInt32]$storedTick=Xor32 $raw $key
+    [UInt32]$nowTick=[W3ReleaseNative]::GetTickCount()
+    [UInt32]$age=Sub32 $nowTick $storedTick
+
+    return (New-Object PSObject -Property @{
+        Object=$obj
+        Address=($obj+[UInt64]0x2C)
+        Raw=$raw
+        StoredTick=$storedTick
+        CurrentTick=$nowTick
+        Age=$age
+        V60=$v60
+        Signature=$trapSig
+    })
+}
+
+function Initialize-TimebaseFix($p,[IntPtr]$h,[long]$nowMs,[bool]$strict){
+    if($script:TimebaseReady){return $true}
+
+    try{$s=Resolve-TimebaseState $p $h}catch{
         if($strict){throw}
-        $m=$_.Exception.Message
-        if($m -like '*verification failed*'){throw}
         return $false
     }
+    if($null-eq$s){return $false}
+
+    if([UInt32]$s.Age-gt[UInt32]120000){
+        if($strict){throw ('Timebase initial age outside guard range: '+[UInt64][UInt32]$s.Age+' ms')}
+        return $false
+    }
+
+    $script:TimebaseObject=[UInt64]$s.Object
+    $script:TimebaseAddr=[UInt64]$s.Address
+    $script:TimebaseOriginalRaw=[UInt32]$s.Raw
+    $script:TimebaseInitialAge=[UInt32]$s.Age
+
+    [UInt32]$key=[UInt32]4281932680
+    [UInt32]$newRaw=Xor32 ([UInt32]$s.CurrentTick) $key
+
+    if([UInt32]$s.Age-lt[UInt32]1000){
+        $script:TimebaseLastRaw=[UInt32]$s.Raw
+        $script:TimebaseReady=$true
+        O ('TIMEBASE_INITIAL_ALREADY_FRESH=True t={0}ms obj=0x{1:X16} ageMs={2}' -f $nowMs,[UInt64]$s.Object,[UInt64][UInt32]$s.Age)
+        return $true
+    }
+
+    WriteRemote $h (I64FromU64 ([UInt64]$s.Address)) ([BitConverter]::GetBytes([UInt32]$newRaw))
+    [UInt32]$verify=ReadU32Remote $h ([UInt64]$s.Address)
+    if($verify-ne$newRaw){throw 'Initial timebase 4-byte write verification failed.'}
+
+    $script:TimebaseLastRaw=$newRaw
+    $script:TimebaseReady=$true
+    O ('TIMEBASE_INITIAL_REFRESH=True t={0}ms obj=0x{1:X16} addr=0x{2:X16} ageRemovedMs={3} oldRaw=0x{4:X8} newRaw=0x{5:X8} bytes=4 codePatched=False' -f
+        $nowMs,[UInt64]$s.Object,[UInt64]$s.Address,[UInt64][UInt32]$s.Age,[UInt32]$s.Raw,$newRaw)
+    return $true
+}
+
+function Maintain-TimebaseFix($p,[IntPtr]$h,[long]$elapsedMs){
+    $s=Resolve-TimebaseState $p $h
+    if($null-eq$s){throw 'Validated timebase object/signature is no longer available.'}
+
+    if([UInt32]$s.Age-lt[UInt32]10000){return}
+    if([UInt32]$s.Age-gt[UInt32]120000){
+        throw ('Timebase heartbeat age outside guard range: '+[UInt64][UInt32]$s.Age+' ms')
+    }
+
+    [UInt32]$key=[UInt32]4281932680
+    [UInt32]$newRaw=Xor32 ([UInt32]$s.CurrentTick) $key
+    WriteRemote $h (I64FromU64 ([UInt64]$s.Address)) ([BitConverter]::GetBytes([UInt32]$newRaw))
+    [UInt32]$verify=ReadU32Remote $h ([UInt64]$s.Address)
+    if($verify-ne$newRaw){throw 'Timebase heartbeat 4-byte write verification failed.'}
+
+    $script:TimebaseObject=[UInt64]$s.Object
+    $script:TimebaseAddr=[UInt64]$s.Address
+    $script:TimebaseLastRaw=$newRaw
+    $script:TimebaseWrites++
+    O ('TIMEBASE_HEARTBEAT_REFRESH=True t={0}ms ageMs={1} writeCount={2}' -f
+        $elapsedMs,[UInt64][UInt32]$s.Age,$script:TimebaseWrites)
 }
 
 function TestWar3Root([string]$root){
@@ -564,7 +584,7 @@ $exitCode=0
 
 try{
     if(Test-Path -LiteralPath $Out){Remove-Item -LiteralPath $Out -Force}
-    O 'Warcraft III 3.0 - Windows 7 ONLINE FIX v1.0'
+    O 'Warcraft III 3.0 - Windows 7 ONLINE FIX v1.1'
     O '=========================================================='
     O ('PowerShell IntPtr.Size='+[IntPtr]::Size)
     O 'PATH_MODE=portable-auto-detect'
@@ -705,21 +725,25 @@ try{
         $lastBool=[BitConverter]::ToInt32($tele,4)
         if($count-ne$lastCount){
             O ('CERT_STATE t={0}ms translatedCalls={1} lastBOOL={2}' -f $now,$count,$lastBool)
-            if($count-ge1 -and $firstCallMs-lt0){$firstCallMs=$now;O ('CERT_CALL_1_OK_MS='+$firstCallMs)}
+            if($count-ge1 -and $firstCallMs-lt0){
+                $firstCallMs=$now
+                O ('CERT_CALL_1_OK_MS='+$firstCallMs)
+                [void](Initialize-TimebaseFix $game $h $now $false)
+            }
             $lastCount=$count
         }
 
-        if((-not$script:C256PatchApplied) -and $count-ge1 -and $lastBool-eq1 -and (($now-$script:C256ProbeLastMs)-ge100)){
-            $script:C256ProbeLastMs=$now
-            [void](TryC256Patch $game $h $now $false)
+        if((-not$script:TimebaseReady) -and $count-ge1 -and $lastBool-eq1 -and (($now-$script:TimebaseProbeLastMs)-ge100)){
+            $script:TimebaseProbeLastMs=$now
+            [void](Initialize-TimebaseFix $game $h $now $false)
         }
 
         if($count-ge2){
             if($lastBool-ne1){throw ('Certificate call #2 returned FALSE; BOOL='+$lastBool)}
-            if(-not$script:C256PatchApplied){
-                [void](TryC256Patch $game $h $now $true)
+            if(-not$script:TimebaseReady){
+                [void](Initialize-TimebaseFix $game $h $now $true)
             }
-            if(-not$script:C256PatchApplied){throw 'C256 exact +0x707 state was not available before detach.'}
+            if(-not$script:TimebaseReady){throw 'Validated encoded timebase was not available before certificate detach.'}
             O ('CERT_CALL_2_OK_MS='+$now)
             break
         }
@@ -742,38 +766,76 @@ try{
     $hookFreed=$true
     O 'STARTUP_HOOK_PAGE_FREED=True'
 
-    for($i=0;$i-lt80;$i++){
-        if($null-eq(Get-Process -Id $gamePid -ErrorAction SilentlyContinue)){throw 'Warcraft exited before READY.'}
-        Start-Sleep -Milliseconds 100
+    # Match the old release readiness margin, but keep the timebase alive during it.
+    $stabilize=[Diagnostics.Stopwatch]::StartNew()
+    [long]$lastBeatCheck=-250
+    while($stabilize.ElapsedMilliseconds-lt8000){
+        $game=Get-Process -Id $gamePid -ErrorAction SilentlyContinue
+        if($null-eq$game){throw 'Warcraft exited before READY.'}
+        if(($stabilize.ElapsedMilliseconds-$lastBeatCheck)-ge250){
+            $lastBeatCheck=$stabilize.ElapsedMilliseconds
+            Maintain-TimebaseFix $game $h $stabilize.ElapsedMilliseconds
+        }
+        Start-Sleep -Milliseconds 25
     }
 
-    [uint32]$cur=[BitConverter]::ToUInt32((ReadRemote $h (I64FromU64 ($script:C256PatchObject+[uint64]0x20)) 4),0)
-    if($cur-ne$script:C256PatchExpected){throw ('C256 value changed before READY: 0x{0:X8}' -f $cur)}
     $ready=$true
-    O ('READY=True C256=0x{0:X8} IATrestored=True hookFreed=True' -f $cur)
-    O 'PERF_PULSE=read-only 4-byte ReadProcessMemory + Thread.Sleep(1)'
+    O ('READY=True timebaseObject=0x{0:X16} initialAgeMs={1} IATrestored=True hookFreed=True heartbeatThresholdMs=10000 fatalThresholdMs=30000' -f
+        $script:TimebaseObject,[UInt64]$script:TimebaseInitialAge)
     Save
     Status 'WARCRAFT III WIN7 FIX ACTIVE - ONLINE READY' $true 2600
 
-    [uint64]$pulseAddr=$script:C256PatchObject+[uint64]0x20
-    [long]$totalPolls=0; [long]$totalFailures=0
-    $pulseSw=[Diagnostics.Stopwatch]::StartNew()
+    $run=[Diagnostics.Stopwatch]::StartNew()
+    $lastBeatCheck=[long]-250
+    $exitDuringHeartbeat=$false
     while($true){
         $game=Get-Process -Id $gamePid -ErrorAction SilentlyContinue
         if($null-eq$game){break}
-        $r=[W3ReleasePulse]::Run($h,$pulseAddr,1000)
-        $totalPolls+=$r.Polls
-        $totalFailures+=$r.ReadFailures
-        if($r.ReadFailures-ge64 -and $r.ElapsedMs-lt500){
-            $game=Get-Process -Id $gamePid -ErrorAction SilentlyContinue
-            if($null-eq$game){break}
-            throw 'Performance pulse lost read access while Warcraft was still running.'
+
+        if(($run.ElapsedMilliseconds-$lastBeatCheck)-ge250){
+            $lastBeatCheck=$run.ElapsedMilliseconds
+            try{
+                Maintain-TimebaseFix $game $h $run.ElapsedMilliseconds
+            }catch{
+                # Normal Warcraft shutdown can unload war3_loader / invalidate the object a few
+                # hundred milliseconds before the process object itself disappears. RC1 treated
+                # that harmless teardown race as a compatibility error.
+                $heartbeatException=$_.Exception
+                $processGone=$false
+                for($exitProbe=0;$exitProbe-lt40;$exitProbe++){
+                    Start-Sleep -Milliseconds 50
+                    $still=Get-Process -Id $gamePid -ErrorAction SilentlyContinue
+                    if($null-eq$still){
+                        $processGone=$true
+                        break
+                    }
+                    try{
+                        if($still.HasExited){
+                            $processGone=$true
+                            break
+                        }
+                    }catch{
+                        $processGone=$true
+                        break
+                    }
+                }
+
+                if($processGone){
+                    $exitDuringHeartbeat=$true
+                    O ('WARCRAFT_EXIT_TEARDOWN_RACE_HANDLED=True runtimeMs={0} heartbeatWrites={1} lastHeartbeatMessage="{2}"' -f
+                        $run.ElapsedMilliseconds,$script:TimebaseWrites,$heartbeatException.Message)
+                    break
+                }
+
+                throw $heartbeatException
+            }
         }
-        if([uint32]$r.LastValue-ne0 -and [uint32]$r.LastValue-ne$script:C256PatchExpected){
-            throw ('C256 runtime value changed unexpectedly to 0x{0:X8}' -f [uint32]$r.LastValue)
-        }
+
+        Start-Sleep -Milliseconds 25
     }
-    O ('WARCRAFT_EXIT=True pulseElapsedMs={0} polls={1} readFailures={2}' -f $pulseSw.ElapsedMilliseconds,$totalPolls,$totalFailures)
+
+    O ('WARCRAFT_EXIT=True runtimeMs={0} heartbeatWrites={1} teardownRaceHandled={2}' -f
+        $run.ElapsedMilliseconds,$script:TimebaseWrites,$exitDuringHeartbeat)
     Save
 }
 catch{
@@ -791,11 +853,14 @@ finally{
                 $iatPatched=$false
             }catch{O ('CLEANUP_IAT_RESTORE_ERROR='+$_.Exception.Message)}
         }
-        if((-not$ready) -and $script:C256PatchApplied -and $script:C256PatchObject-ne0 -and $script:C256PatchOriginal-ne$script:C256PatchExpected){
+        if((-not$ready) -and $script:TimebaseReady -and $script:TimebaseAddr-ne0){
             try{
-                WriteRemote $h (I64FromU64 ($script:C256PatchObject+[uint64]0x20)) ([BitConverter]::GetBytes([uint32]$script:C256PatchOriginal))
-                O 'CLEANUP_C256_RESTORED_BECAUSE_NOT_READY=True'
-            }catch{O ('CLEANUP_C256_RESTORE_ERROR='+$_.Exception.Message)}
+                [UInt32]$cur=ReadU32Remote $h $script:TimebaseAddr
+                if($cur-eq$script:TimebaseLastRaw -and $script:TimebaseOriginalRaw-ne$script:TimebaseLastRaw){
+                    WriteRemote $h (I64FromU64 $script:TimebaseAddr) ([BitConverter]::GetBytes([UInt32]$script:TimebaseOriginalRaw))
+                    O 'CLEANUP_TIMEBASE_ORIGINAL_RESTORED_BECAUSE_NOT_READY=True'
+                }
+            }catch{O ('CLEANUP_TIMEBASE_RESTORE_ERROR='+$_.Exception.Message)}
         }
         if((-not$hookFreed) -and $remoteBase-ne0){
             try{

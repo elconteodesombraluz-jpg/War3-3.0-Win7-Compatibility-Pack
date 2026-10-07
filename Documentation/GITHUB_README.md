@@ -1,22 +1,22 @@
-# Warcraft III 3.0 Windows 7 Compatibility Pack v1.0
+# Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
 
-This independent compatibility pack is intended to restore the current Warcraft III 3.0 / Battle.net path on the specific Windows 7 SP1 x64 binary set on which it was developed and validated.
+This independent compatibility pack restores the current Warcraft III 3.0 / Battle.net path on the specific Windows 7 SP1 x64 binary set on which it was developed and validated.
 
 It is not affiliated with, supported by, or endorsed by Blizzard Entertainment, Microsoft, AVG, or OpenAI. Warcraft III still launches through the official Battle.net desktop launcher and connects to Blizzard's official services.
 
-## What changed from the original provider project
+## v1.1 update
 
-The August 2026 release was a **Windows 7 Battle.net Compatibility Provider**. That solved the first compatibility boundary, but it turned out not to be the whole Warcraft III 3.0 problem. The complete working solution now has three layers:
+The October 7, 2026 Warcraft III update changed `ClientSdk.dll` and `war3_loader.dll`, invalidating the v1.0 runtime hashes and the old `+0x707` C256 correction.
 
-1. **Windows crypto / Battle.net provider layer.** The original validated x64 Schannel/ncrypt compatibility provider is preserved unchanged. The pack also installs the separately audited x86 companion image needed by the 32-bit Battle.net/Agent Schannel path.
-2. **Warcraft III 3.0 `ClientSdk.dll` / `crypt32.dll` ABI layer.** The current client passes an 88-byte `CERT_CHAIN_ENGINE_CONFIG`; the validated Windows 7 `crypt32.dll` accepts the older layout only up to 80 bytes. The runtime launcher temporarily translates the 88-byte call to an 80-byte stack-local copy. The caller's original structure is never changed. After the two validated startup calls, the original IAT entry is restored and the private hook page is freed.
-3. **Warcraft III 3.0 `war3_loader` fatal-path correction.** On the validated game build, an exact `+0x707` mismatch at the identified predicate routes execution toward a noreturn/fatal path ending in an infinite wait. The launcher performs one guarded four-byte process-local data correction only if that exact mismatch is present. No Warcraft executable or DLL is patched on disk.
+The persistent Windows provider layer did **not** need to change. v1.1 therefore preserves the validated x64 and x86 provider binaries unchanged and replaces only the Warcraft runtime logic.
 
-After READY, the launcher keeps a tiny read-only `ReadProcessMemory` pulse active while Warcraft runs. It was discovered accidentally during diagnostics and made the game feel modestly more responsive on the development machine. It is **not** claimed as a general FPS fix; the mechanism was not proven.
+The complete game-side solution now has three layers:
 
-## Not simply a Proton port
+1. **Windows crypto / Battle.net provider layer.** The original validated x64 Schannel/ncrypt compatibility provider is preserved unchanged. The pack also installs the audited x86 companion required by the 32-bit Battle.net/Agent Schannel path.
+2. **Warcraft III `ClientSdk.dll` / `crypt32.dll` ABI layer.** The updated `ClientSdk.dll` still passes an 88-byte `CERT_CHAIN_ENGINE_CONFIG`; the validated Windows 7 `crypt32.dll` accepts the older layout only up to 80 bytes. The launcher temporarily supplies an 80-byte stack-local copy for the two validated startup calls, restores the original IAT entry, and frees the temporary hook page.
+3. **Updated `war3_loader` timebase / fatal-path correction.** The new loader no longer uses the v1.0 raw `+0x707` predicate. The critical object contains an encoded timestamp at `object+0x2C`. On the validated Windows 7 path, allowing that timestamp to become at least 30,000 ms old routes execution into the same terminal loader wait. The v1.1 launcher performs a guarded initial four-byte refresh after certificate call #1, then refreshes the same validated process-local field only when its decoded age reaches 10,000 ms.
 
-A Proton/Wine workaround was useful evidence for understanding the modern `CERT_CHAIN_ENGINE_CONFIG` layout mismatch. The native Windows 7 work then independently traced and corrected the separate `war3_loader` fatal path, built the Windows provider layers, added fail-closed binary guards, and validated the complete path through the official Battle.net launcher. The current pack is therefore a native Windows 7 compatibility project, not a direct Proton binary port.
+No Warcraft executable or DLL is modified on disk, and no `war3_loader` code byte is patched.
 
 ## Supported configuration — fail closed
 
@@ -40,75 +40,82 @@ Do **not** bypass hash checks and do not mix components from another Windows 7 p
 
 ### Validated Warcraft III runtime build
 
-- Warcraft III `3.0.0.24268` — Forsaken Kingdom
-- `ClientSdk.dll` — `3a8762f6641f39da8099009adccfe1b2f9aa9613defe98273e38341de500b10e`
-- `war3_loader.dll` — `e32431e26f58d1201be3f48baed485114227864d8c6b871eae8e9528241ec8e9`
+Validated against the Warcraft III 3.0 binaries distributed on October 7, 2026:
 
-The runtime BAT checks the Warcraft hashes before applying any process-local offset. A later Warcraft update is expected to fail closed until it is independently re-audited.
+- `ClientSdk.dll` — `04f798ac211b9fea1b741b4f1d520d7e5b3cf5f038241c909b7429b02a4cf134`
+- `war3_loader.dll` — `df44a65ef76ac2159f531693a751de22807dd454778090475292092c111e6461`
+
+The runtime launcher fails closed if either hash differs.
 
 ## Installation
 
-1. Close Warcraft III and Battle.net completely. Fully quit Hide.me on systems where it is installed.
+1. Close Warcraft III and Battle.net completely. Fully quit Hide.me or other VPN software if installed.
 2. Extract the complete ZIP to a normal writable folder.
-3. Right-click `INSTALL.bat` and choose **Run as administrator**. The BAT can also request elevation itself.
-4. The installer validates the original x64 payload, the x64 system binaries, the x86 system binaries, and the installed provider state. Unexpected existing provider files are not overwritten.
-5. Do not bypass a failed precheck.
-6. Reboot Windows once after installing/changing the persistent provider layer.
-7. Start the official Battle.net desktop launcher and sign in.
-8. Launch Warcraft III with `START_WARCRAFT_III.bat`.
-9. Wait for the green **WARCRAFT III WIN7 FIX ACTIVE - ONLINE READY** status before using Multiplayer / Custom Games.
+3. Right-click `INSTALL.bat` and choose **Run as administrator**.
+4. Do not bypass a failed precheck.
+5. Reboot Windows once after installing or changing the persistent provider layer.
+6. Start the official Battle.net launcher and sign in.
+7. Launch Warcraft III with `START_WARCRAFT_III.bat`.
+8. Wait for the green **WARCRAFT III WIN7 FIX ACTIVE - ONLINE READY** status before using Multiplayer / Custom Games.
 
-Warcraft III and Battle.net do not need to be on `C:`. The runtime launcher auto-detects both paths. The validated development machine stores Warcraft III on `E:`.
-
-If the exact original x64 provider and x86 companion are already installed, the root installer detects and reuses them instead of overwriting them.
+If the exact v1.0 provider layer is already installed, `INSTALL.bat` detects and reuses it. Updating from pack v1.0 to v1.1 does not require replacing identical provider binaries.
 
 ## Daily use
 
-Use `START_WARCRAFT_III.bat`. It verifies the installed provider hashes, provider registration, and the exact runtime BAT before starting the validated process-local fix. Battle.net remains the official launcher and Blizzard remains the authentication/server endpoint.
+Use `START_WARCRAFT_III.bat`. The wrapper verifies the installed providers, provider registration, and the exact v1.1 runtime BAT before launch.
 
-The console remains open while Warcraft is running because the lightweight read-only pulse is active. It closes shortly after Warcraft exits. The runtime log is written under `Runtime\WAR3_WIN7_ONLINE_FIX_v1.0.txt`.
+The console remains open because the v1.1 runtime maintains the guarded process-local timebase while Warcraft is running. It closes automatically after Warcraft exits. The runtime log is written to:
+
+`Runtime\WAR3_WIN7_ONLINE_FIX_v1.1.txt`
+
+## Validation result
+
+On the development machine, the v1.1 mechanism was validated through:
+
+- normal Battle.net / in-game authentication;
+- Multiplayer / Custom Games navigation;
+- completion of an online map download;
+- leaving and creating a private online game;
+- playing an actual online game to completion;
+- more than 15 minutes of continuous heartbeat maintenance in the diagnostic validation run;
+- normal Warcraft shutdown and clean launcher exit.
+
+## World Editor status
+
+The previous World Editor helper targets the pre-October build and its old binary hashes. It is **not** part of the v1.1 Warcraft runtime validation and should not be forced onto the new World Editor build. A matching World Editor update is being handled separately.
 
 ## Verification
 
-`VERIFY_INSTALLATION.bat` checks the installed x64 and x86 provider hashes, the x64 CNG provider registration, and the runtime BAT integrity. It does not modify the system.
+`VERIFY_INSTALLATION.bat` checks the x64/x86 provider hashes, the x64 provider registration, and the exact v1.1 runtime BAT integrity.
 
 ## Removal
 
-1. Close Warcraft III and Battle.net.
-2. Run `REMOVE.bat` as administrator.
-3. The remover refuses to delete an installed provider DLL whose SHA-256 does not match this pack.
-4. Reboot Windows once after removing the persistent provider layer.
-
-The Warcraft runtime correction itself is process-local; no patched Warcraft file remains after the game exits.
+Run `REMOVE.bat` as administrator with Warcraft III and Battle.net closed, then reboot once. The runtime changes are process-local and disappear when Warcraft exits.
 
 ## What the pack does not do
 
-It does not redirect Battle.net traffic, emulate Blizzard authentication, fabricate credentials/tokens, bypass account authentication, redirect Warcraft III to another server, replace Microsoft system DLLs, distribute Blizzard executables, or patch Blizzard files on disk.
+It does not redirect Battle.net traffic, emulate Blizzard authentication, fabricate credentials/tokens, redirect Warcraft III to another server, replace Microsoft system DLLs, distribute Blizzard executables, or modify Warcraft files on disk.
 
-It **does** temporarily change four bytes of validated Warcraft process memory under an exact predicate/hash guard. That is intentionally documented rather than hidden behind the older provider-only wording that said the project did not patch Warcraft at all.
+It **does** make guarded four-byte process-local data writes to the validated Warcraft process while it runs. Those writes maintain the encoded timebase below the fatal 30-second threshold on the supported Windows 7 path.
 
 ## Original provider preservation
 
-`Provider/x64/` contains the six files from the original public `War3_Win7_BattleNet_Compat_v1.0.zip` release unchanged. The original archive had SHA-256:
+`Provider/x64/` preserves the original public x64 provider release unchanged. Its original public archive SHA-256 was:
 
 `3db1ba9ccc1b0bcf805b0e849d4df77ffd78d966b50d517187a359b4dc0f85c7`
 
-The original x64 runtime provider DLL remains:
-
-`d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90`
-
-The original provider README is kept in that component directory for historical/technical reference. Its statement that the provider itself does not patch Warcraft remains true for that component; the complete pack now additionally contains the documented process-local runtime fix.
+The original x64 provider DLL remains `d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90`.
 
 ## Other Windows 7 binary sets
 
-The older provider research was independently adapted by Blizzard forum user **Architect** for another Windows 7 system-binary set. Do not mix that provider build with this pack. Users whose system hashes differ should use a build explicitly developed for their exact binaries rather than disabling checks.
+Do not mix this provider build with the independent ArchitectOfRuin variant or other Windows 7 binary sets. Similar symptoms do not make their provider binaries interchangeable.
 
 ## Antivirus
 
-AVG interfered with some compatibility files during development. If an antivirus blocks or quarantines a pack file, do not continue with an incomplete installation. Verify `SHA256SUMS.txt` and allow/restore only the exact release payload.
+AVG interfered with some compatibility files during development. If antivirus software blocks or quarantines a pack file, do not continue with an incomplete package. Verify hashes first.
 
 ## Project / support scope
 
-This project was developed through a long iterative investigation with ChatGPT by OpenAI and repeated experiments on the affected Windows 7 machine. The publisher is a novelist rather than a Windows internals or security engineer. The technical notes and hashes are included so experienced users can inspect and reproduce the work; individual support for arbitrary Windows builds cannot be guaranteed.
+This project was developed through iterative reverse engineering with ChatGPT by OpenAI and repeated experiments on the affected Windows 7 machine. The publisher is a novelist rather than a Windows internals or security engineer. Exact hashes and technical notes are included so experienced users can inspect and reproduce the work.
 
 See `Documentation/TECHNICAL_NOTES.md`, `Documentation/CHANGELOG.md`, and `Documentation/LEGAL_NOTICE.txt`.
