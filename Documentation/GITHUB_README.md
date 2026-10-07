@@ -10,11 +10,12 @@ The October 7, 2026 Warcraft III update changed `ClientSdk.dll` and `war3_loader
 
 The persistent Windows provider layer did **not** need to change. v1.1 therefore preserves the validated x64 and x86 provider binaries unchanged and replaces only the Warcraft runtime logic.
 
-The complete game-side solution now has three layers:
+The complete project now covers four compatibility layers:
 
 1. **Windows crypto / Battle.net provider layer.** The original validated x64 Schannel/ncrypt compatibility provider is preserved unchanged. The pack also installs the audited x86 companion required by the 32-bit Battle.net/Agent Schannel path.
 2. **Warcraft III `ClientSdk.dll` / `crypt32.dll` ABI layer.** The updated `ClientSdk.dll` still passes an 88-byte `CERT_CHAIN_ENGINE_CONFIG`; the validated Windows 7 `crypt32.dll` accepts the older layout only up to 80 bytes. The launcher temporarily supplies an 80-byte stack-local copy for the two validated startup calls, restores the original IAT entry, and frees the temporary hook page.
 3. **Updated `war3_loader` timebase / fatal-path correction.** The new loader no longer uses the v1.0 raw `+0x707` predicate. The critical object contains an encoded timestamp at `object+0x2C`. On the validated Windows 7 path, allowing that timestamp to become at least 30,000 ms old routes execution into the same terminal loader wait. The v1.1 launcher performs a guarded initial four-byte refresh after certificate call #1, then refreshes the same validated process-local field only when its decoded age reaches 10,000 ms.
+4. **World Editor `worldedit_loader` timebase / fatal-path correction.** The October 2026 World Editor loader uses the same validated encoded-timebase mechanism. The included `War3_3.0_WorldEditor_Win7_Fix_v1.1` helper opens the bundled `dummy.w3m` through the normal Windows `.w3m` association, attaches to that standalone World Editor process, validates the exact editor/loader hashes and runtime signature, and maintains the same guarded four-byte timebase below the 30-second fatal threshold. This helper is independent of Battle.net: Battle.net may be running or completely closed.
 
 No Warcraft executable or DLL is modified on disk, and no `war3_loader` code byte is patched.
 
@@ -46,6 +47,13 @@ Validated against the Warcraft III 3.0 binaries distributed on October 7, 2026:
 - `war3_loader.dll` — `df44a65ef76ac2159f531693a751de22807dd454778090475292092c111e6461`
 
 The runtime launcher fails closed if either hash differs.
+
+### Validated World Editor runtime build
+
+- `World Editor.exe` — `f46f0a72d32cbdd366f4a0f7de54d35ad2ccad9d00e23749269910afd75c34e3`
+- `worldedit_loader.dll` — `aefd841b006117d11582b018031fe9d7a2c8f48150c688e54f1c64b7f66c67cd`
+
+The World Editor helper also fails closed if the supported hashes, decoded object, or runtime signature do not match.
 
 ## Installation
 
@@ -80,9 +88,17 @@ On the development machine, the v1.1 mechanism was validated through:
 - more than 15 minutes of continuous heartbeat maintenance in the diagnostic validation run;
 - normal Warcraft shutdown and clean launcher exit.
 
-## World Editor status
+## World Editor use
 
-The previous World Editor helper targets the pre-October build and its old binary hashes. It is **not** part of the v1.1 Warcraft runtime validation and should not be forced onto the new World Editor build. A matching World Editor update is being handled separately.
+The project now includes `War3_3.0_WorldEditor_Win7_Fix_v1.1`.
+
+The World Editor helper is **not dependent on Battle.net**. Battle.net may be open or closed. The bundled `dummy.w3m` exists specifically so the helper can use the normal Windows `.w3m` ShellOpen path instead of launching `World Editor.exe` directly.
+
+Run `START_WORLD_EDITOR_FIXED.bat` from that folder. Leave `WorldEditorPath=` blank in `WorldEditorFix.ini` for auto-detection, or set the full path manually if detection fails.
+
+Wait for the green **WORLD EDITOR WIN7 FIX ACTIVE - USE THE EDITOR NORMALLY** message. You may then close `dummy.w3m` and open any other map inside the same World Editor process.
+
+The helper has no persistent installation and requires no provider installation specifically for World Editor. Its guarded four-byte process-local timebase writes disappear when World Editor exits.
 
 ## Verification
 
@@ -97,6 +113,8 @@ Run `REMOVE.bat` as administrator with Warcraft III and Battle.net closed, then 
 It does not redirect Battle.net traffic, emulate Blizzard authentication, fabricate credentials/tokens, redirect Warcraft III to another server, replace Microsoft system DLLs, distribute Blizzard executables, or modify Warcraft files on disk.
 
 It **does** make guarded four-byte process-local data writes to the validated Warcraft process while it runs. Those writes maintain the encoded timebase below the fatal 30-second threshold on the supported Windows 7 path.
+
+The included World Editor helper follows the same fail-closed process-local approach. It does not modify `World Editor.exe`, `worldedit_loader.dll`, or map files on disk, and it does not require Battle.net to be running.
 
 ## Original provider preservation
 

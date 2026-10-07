@@ -60,7 +60,18 @@ Existing v1.0 users whose exact provider binaries are already installed can reus
 
 ## World Editor
 
-The previous World Editor helper targets the pre-October hashes and is being re-audited separately. Do not force it onto the new World Editor binaries.
+The project includes the dedicated `War3_3.0_WorldEditor_Win7_Fix_v1.1` helper.
+
+Validated hashes:
+
+- `World Editor.exe`: `f46f0a72d32cbdd366f4a0f7de54d35ad2ccad9d00e23749269910afd75c34e3`
+- `worldedit_loader.dll`: `aefd841b006117d11582b018031fe9d7a2c8f48150c688e54f1c64b7f66c67cd`
+
+The World Editor helper is **independent of Battle.net**. Battle.net may be open or closed.
+
+`START_WORLD_EDITOR_FIXED.bat` does not launch `World Editor.exe` directly. Instead, it ShellOpens the bundled `dummy.w3m` through the normal Windows `.w3m` file association, attaches to the resulting standalone editor process, validates the exact supported binaries and runtime object/signature, and maintains the same guarded encoded-timebase heartbeat used by the October Warcraft runtime fix.
+
+Once **WORLD EDITOR WIN7 FIX ACTIVE** appears, `dummy.w3m` may be closed and any other map may be opened inside that same World Editor process. No editor executable, DLL, or map file is modified on disk.
 
 ## Integrity
 

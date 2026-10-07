@@ -9,7 +9,7 @@ Validated provider DLLs:
 - x64: `d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90`
 - x86: `e32754c90d6e44844103b02c681e4e1b7a09fc5ae349f2e1a2abc5ce304496ef`
 
-v1.1 changes only the Warcraft runtime layer.
+The persistent provider layer is unchanged. v1.1 updates the process-local Warcraft runtime helper and the separate World Editor helper.
 
 ## 2. ClientSdk certificate ABI compatibility
 
@@ -116,3 +116,25 @@ That pulse is not part of v1.1. The October update changed the runtime path and 
 The Windows provider DLLs are persistent components and require explicit installation/removal plus a reboot when their state changes.
 
 The certificate hook and timebase writes are process-local. The IAT hook is removed during startup, the private hook page is freed, and all process-memory changes disappear when Warcraft exits. No Warcraft file is rewritten.
+
+## 10. World Editor v1.1
+
+The October 2026 World Editor binaries validated for this helper are:
+
+- `World Editor.exe`: `f46f0a72d32cbdd366f4a0f7de54d35ad2ccad9d00e23749269910afd75c34e3`
+- `worldedit_loader.dll`: `aefd841b006117d11582b018031fe9d7a2c8f48150c688e54f1c64b7f66c67cd`
+
+Static comparison showed the relevant October `worldedit_loader.dll` loader implementation uses the same regenerated encoded-timebase path validated for Warcraft III v1.1. The World Editor helper therefore uses the same guarded runtime policy:
+
+- decode and validate the regenerated object;
+- require the observed `object+0x60 -> 0x909` signature;
+- decode `object+0x2C` with the validated `0xFF391B88` key;
+- keep decoded age below the 30,000 ms fatal threshold;
+- check approximately every 250 ms and write only at 10,000 ms age;
+- write exactly four process-local data bytes and verify each write immediately.
+
+The World Editor helper does **not** depend on Battle.net. Battle.net may be open or closed.
+
+The bundled `dummy.w3m` is a launch target for the normal Windows `.w3m` ShellOpen path. This avoids directly starting `World Editor.exe`, which followed a different startup path on the validated system. After the helper reports READY, any other map may be opened inside the same World Editor process.
+
+The validation run began with a naturally fresh timestamp (`46 ms` old), performed 8 guarded heartbeat refreshes over approximately 90.9 seconds, reported no hung-window state, and ended with a normal process exit.

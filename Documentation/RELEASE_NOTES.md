@@ -15,4 +15,11 @@ The v1.0 experimental read-only ~1 ms responsiveness pulse is not carried forwar
 
 Validation on the development machine included successful Multiplayer / Custom Games navigation, online map download, creation of a private online game, completion of an actual online game, and clean shutdown.
 
-The World Editor helper is being re-audited separately for the October update. Do not force the previous World Editor helper onto the new binaries.
+The World Editor helper has also been updated for the October build:
+
+- `World Editor.exe`: `f46f0a72d32cbdd366f4a0f7de54d35ad2ccad9d00e23749269910afd75c34e3`
+- `worldedit_loader.dll`: `aefd841b006117d11582b018031fe9d7a2c8f48150c688e54f1c64b7f66c67cd`
+
+The new World Editor helper uses the same guarded encoded-timebase heartbeat as the validated Warcraft runtime, but it remains operationally independent of Battle.net. It launches the editor by ShellOpening the bundled `dummy.w3m` through the normal Windows file association; Battle.net may be running or completely closed.
+
+Validation included repeated heartbeat maintenance across the previous freeze window and a normal editor shutdown.

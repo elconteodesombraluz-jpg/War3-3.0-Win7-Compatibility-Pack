@@ -13,7 +13,11 @@
 - Kept exact hash/object/signature fail-closed guards.
 - Removed the v1.0 experimental read-only ~1 ms responsiveness pulse from the new runtime.
 - Validated map download, private online game creation, a completed online game, more than 15 minutes of heartbeat operation, and normal shutdown.
-- Marked the previous World Editor helper as pending separate re-audit for the October build.
+- Re-audited the World Editor helper for the October build.
+- Confirmed the new `worldedit_loader.dll` uses the same validated encoded-timebase mechanism as the updated Warcraft loader.
+- Replaced the old World Editor `+0x707` helper with a guarded 10-second timebase heartbeat.
+- Preserved the ShellOpen `dummy.w3m` launch path; the World Editor helper is independent of Battle.net and works whether Battle.net is open or closed.
+- Validated normal World Editor use across repeated 30-second windows, 8 guarded heartbeat refreshes, and clean shutdown.
 
 ## Warcraft III 3.0 Windows 7 Compatibility Pack v1.0 — 2026-09-15
 
