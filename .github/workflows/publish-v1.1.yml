@@ -1,0 +1,93 @@
+name: Publish v1.1 release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-v1.1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build v1.1 archive and checksum
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import shutil
+          import zipfile
+
+          package_name = "War3_3.0_Win7_Compatibility_Pack_v1.1"
+          staging = Path("release-staging") / package_name
+          if staging.parent.exists():
+              shutil.rmtree(staging.parent)
+          staging.mkdir(parents=True)
+
+          include = [
+              "README.md",
+              "INSTALL.bat",
+              "REMOVE.bat",
+              "VERIFY_INSTALLATION.bat",
+              "START_WARCRAFT_III.bat",
+              "Provider",
+              "Runtime",
+              "Tools",
+              "Documentation",
+              "SHA256SUMS.txt",
+              "War3_3.0_WorldEditor_Win7_Fix_v1.1",
+          ]
+
+          for item in include:
+              src = Path(item)
+              dst = staging / item
+              if src.is_dir():
+                  shutil.copytree(src, dst)
+              else:
+                  dst.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(src, dst)
+
+          zip_path = Path(package_name + ".zip")
+          if zip_path.exists():
+              zip_path.unlink()
+
+          with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+              for path in sorted(staging.rglob("*")):
+                  if path.is_file():
+                      arcname = Path(package_name) / path.relative_to(staging)
+                      zf.write(path, arcname.as_posix())
+
+          digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+          checksum = Path(package_name + "_SHA256.txt")
+          checksum.write_text(f"{digest}  {zip_path.name}\n", encoding="ascii")
+          print(f"SHA-256: {digest}")
+          PY
+
+      - name: Create or refresh GitHub release v1.1
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PACK="War3_3.0_Win7_Compatibility_Pack_v1.1.zip"
+          SUM="War3_3.0_Win7_Compatibility_Pack_v1.1_SHA256.txt"
+          TITLE="Warcraft III 3.0 Windows 7 Compatibility Pack v1.1"
+
+          if gh release view v1.1 >/dev/null 2>&1; then
+            gh release edit v1.1 --title "$TITLE" --notes-file Documentation/RELEASE_NOTES.md
+            gh release upload v1.1 "$PACK" "$SUM" --clobber
+          else
+            gh release create v1.1 "$PACK" "$SUM" \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file Documentation/RELEASE_NOTES.md
+          fi
