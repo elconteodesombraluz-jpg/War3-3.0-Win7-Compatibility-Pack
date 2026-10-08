@@ -502,12 +502,13 @@ try{
     }
 
     $ready=$true
-    O ('READY=True object=0x{0:X16} initialAgeMs={1} heartbeatThresholdMs=10000 fatalThresholdMs=30000' -f $script:TimebaseObject,[UInt64]$script:InitialAge)
+    O ('READY=True object=0x{0:X16} initialAgeMs={1} heartbeatThresholdMs=10000 loaderFatalThresholdMs=30000 guardThresholdMs=120000' -f $script:TimebaseObject,[UInt64]$script:InitialAge)
     Status 'WORLD EDITOR WIN7 FIX ACTIVE - USE THE EDITOR NORMALLY' $true 3000
 
     $lastBeat=[long]-250
     $lastLog=[long]-5000
     $hangCount=0
+    $hangReported=$false
     $shutdownRace=$false
 
     while($true){
@@ -542,21 +543,26 @@ try{
             $p.Refresh()
             if($p.MainWindowHandle-ne[IntPtr]::Zero){$hung=[WETBWin32]::IsHungAppWindow($p.MainWindowHandle)}
         }catch{}
-        if($hung){$hangCount++}else{$hangCount=0}
+        if($hung){
+            $hangCount++
+        }else{
+            if($hangReported){O ('UI_RESPONSIVE_AGAIN=True t={0}ms writes={1}' -f $sw.ElapsedMilliseconds,$script:Writes)}
+            $hangCount=0
+            $hangReported=$false
+        }
 
         if(($sw.ElapsedMilliseconds-$lastLog)-ge5000){
             $lastLog=$sw.ElapsedMilliseconds
             O ('HEARTBEAT t={0}ms IsHung={1} consecutiveHungChecks={2} writes={3}' -f $sw.ElapsedMilliseconds,$hung,$hangCount,$script:Writes)
         }
 
-        if($hangCount-ge80){
-            O ('HANG_DETECTED=True t={0}ms writes={1}' -f $sw.ElapsedMilliseconds,$script:Writes)
+        if($hangCount-ge80 -and -not $hangReported){
+            $hangReported=$true
+            O ('UI_HANG_WARNING=True t={0}ms writes={1}' -f $sw.ElapsedMilliseconds,$script:Writes)
             try{
                 $s=Resolve-TimebaseState $p $ph
                 if($null-ne$s){O ('HANG_TIMEBASE ageMs={0} raw=0x{1:X8} obj=0x{2:X16}' -f [UInt64][UInt32]$s.Age,[UInt32]$s.Raw,[UInt64]$s.Object)}
             }catch{O ('HANG_TIMEBASE_ERROR='+$_.Exception.Message)}
-            Status 'WORLD EDITOR HANG DETECTED - SEE TXT LOG' $false 4500
-            exit 22
         }
 
         Start-Sleep -Milliseconds 25
