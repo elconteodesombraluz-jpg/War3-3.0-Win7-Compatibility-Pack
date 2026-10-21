@@ -19,7 +19,7 @@ for %%P in ("Hide.me.exe") do (
   )
 )
 
-"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%X64INST%" -Expected "12d91f8891620fd30069e85aef74e0dd8c0d36d9fd3e67997a45be73db88a195"
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%X64INST%" -Expected "d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90"
 if not "%ERRORLEVEL%"=="10" (
   echo ERROR: the validated x64 provider is not installed. Run INSTALL.bat first.
   pause
