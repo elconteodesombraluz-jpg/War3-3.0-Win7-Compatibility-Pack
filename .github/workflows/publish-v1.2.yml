@@ -72,7 +72,7 @@ jobs:
               relpaths.append(rel)
           assert len(relpaths) == 34
           zpath = Path(name + '.zip')
-          with ZipFile(zpath, 'w', ZIP_DEFLATED, compresslevel=9) as zf:
+          with ZipFile(zpath, 'w', ZIP_DEFLATED, compresslevel=9, strict_timestamps=False) as zf:
               for rel in sorted(relpaths + ['SHA256SUMS.txt']):
                   zf.write(rel, (Path(name) / rel).as_posix())
           check = Path(name + '_SHA256.txt')
