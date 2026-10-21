@@ -31,7 +31,8 @@ jobs:
           echo "f557ef6ad7406fc4366c59dedc0de630def0870e3cf3c0542b8d9fe2917d2c58  /tmp/war3-win7-v1.2.tar.xz" | sha256sum --check --status
           tar -xJf /tmp/war3-win7-v1.2.tar.xz
           mkdir -p War3_3.0.1_WorldEditor_Win7_Fix_v1.2
-          cp War3_3.0_WorldEditor_Win7_Fix_v1.1/dummy.w3m War3_3.0.1_WorldEditor_Win7_Fix_v1.2/dummy.w3m
+          # v1.2 dummy.w3m is tracked in this branch; do not depend on obsolete v1.1 sources
+          test -f War3_3.0.1_WorldEditor_Win7_Fix_v1.2/dummy.w3m
           sha256sum --check SHA256SUMS.txt
           python3 - <<'PY'
           from pathlib import Path
