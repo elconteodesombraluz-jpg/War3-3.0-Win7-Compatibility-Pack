@@ -1,140 +1,26 @@
-# Technical notes — Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
+# Technical notes — Warcraft III 3.0.1.24371 / Windows 7
 
-## 1. Persistent provider layer
+## Compatibility boundaries
 
-The x64 and x86 Windows compatibility providers are unchanged from v1.0. They restore the Schannel/ncrypt provider-interface path required by the validated Battle.net/Agent configuration.
+The provider layer is unchanged from v1.1: validated x64 and x86 crypto/Schannel components. INSTALL and REMOVE preserve their original executable and registration controls. Windows versions other than the specifically documented Windows 7 SP1 x64 binary set are **not** validated.
 
-Validated provider DLLs:
+## Warcraft III runtime
 
-- x64: `d2dc7f30344f2f4482196301835fdc45231619fc4df3d74bf49bf809b5fcbc90`
-- x86: `e32754c90d6e44844103b02c681e4e1b7a09fc5ae349f2e1a2abc5ce304496ef`
+Exact ClientSdk SHA-256 `04f798ac211b9fea1b741b4f1d520d7e5b3cf5f038241c909b7429b02a4cf134`, loader SHA-256 `ef88b6554036661f5974986b95912b08c8a7042795177f539a67cc4e710d23d7`. Based on tested v7b runtime payload. Existing ClientSdk runtime shim temporarily adapts the 88-byte CERT_CHAIN_ENGINE_CONFIG structure to an 80-byte Windows 7 compatible copy for the two validated calls and then restores IAT and frees hook memory. After first certificate call, a guarded timebase refresh is applied to a regenerated object and maintained every ~250 ms at >=10-second age. In-game status appears after the proven post-certificate stabilization delay. No war3_loader code byte is patched.
 
-The persistent provider layer is unchanged. v1.1 updates the process-local Warcraft runtime helper and the separate World Editor helper.
+The 3.0.1 runtime uses an encoded timebase (`storedTick = raw XOR 0x79578000`) at object+0x6C, unlike the October 7 3.0 loader's old object+0x2C. The 30-second fatal-path threshold was established during v7b development. Writes are process-local 4-byte DATA only, immediately read back and guarded by exact signatures and plausible ages. The published v1.2 removes hard stop on GUI nonresponding status; maintenance continues even during long legitimate loads.
 
-## 2. ClientSdk certificate ABI compatibility
+## World Editor standalone
 
-The October 7, 2026 `ClientSdk.dll` still imports `CRYPT32!CertCreateCertificateChainEngine`, with the IAT slot at RVA `0x00767170`.
+Exact SHA-256:
+- World Editor.exe `988a6a49f729cd3a20e91e82edd88b4d955be3757d66d8283e261f75b755ac22`
+- worldedit_loader.dll `0e24a0270bdffa9edd68bbd7f7a2e8bafc3c232317fbda0cfabe23ea0407e3d9`
+- dummy.w3m `77b4313c9a7498eb3a49a7b4228885f8080b61a369006888c29e5486a8533088`
 
-The caller supplies an 88-byte `CERT_CHAIN_ENGINE_CONFIG`. The validated Windows 7 `crypt32.dll` accepts the older layout only up to 80 bytes. The runtime launcher therefore intercepts only the validated startup calls and, when `cbSize == 88`, passes a stack-local 80-byte copy with `cbSize` rewritten to 80. The caller-owned 88-byte structure is never modified.
+The editor launches by ShellOpening the bundled dummy.w3m instead of directly executing World Editor.exe. It attaches to the resulting process, validates image hashes, and finds the global at loader+0x216A878. Decoded object key: 0xEC3F4C87D9BA4DC6. Encoded age at object+0x6C using XOR 0x79578000. TEST4's important guard refinement: the full object+0x68 DWORD varied (`0x0000004E` / `0x003C444E`), but its low byte remained 0x4E. The helper validates this invariant plus object+0x70 == 0x9D3F7240, checked twice with the global pointer and encoded timestamp before writing. Reads timebase again after the write. It refuses a stale age above 120 seconds or a mismatch.
 
-After two successful translated calls, the original IAT pointer is restored exactly. Two seconds later the temporary executable hook page is freed.
+Confirmed local 2026-10-22 TEST4 log: 10 successful `TIMEBASE_REFRESH_APPLIED=True` events in about 110,942 ms, `RESULT fixActivated=True writes=10`. This confirms successful operation in that trial, but not universal compatibility with other builds or system DLLs.
 
-## 3. October 7 loader change
+## What changed from old v1.1 pack
 
-The v1.0 Warcraft runtime used a guarded four-byte correction for an exact `+0x707` mismatch in the old `C25698..C256C2` predicate. The October 7 update changed the loader enough that transplanting `+0x707` was invalid.
-
-Validated new hashes:
-
-- `ClientSdk.dll`: `04f798ac211b9fea1b741b4f1d520d7e5b3cf5f038241c909b7429b02a4cf134`
-- `war3_loader.dll`: `df44a65ef76ac2159f531693a751de22807dd454778090475292092c111e6461`
-
-The new frozen GUI thread repeatedly terminated in:
-
-`ntdll+0x698CA → KERNELBASE+0x10AC → KERNELBASE+0x2D30 → war3_loader+0xEB442D → war3_loader+0xE4B15B → war3_loader+0x11A8E89`
-
-This is the same class of terminal loader wait as the previous build, but the decisive arithmetic is different.
-
-## 4. Regenerated object and encoded timebase
-
-The relevant process-local object is decoded from regenerated loader globals. In the validated build the object relationship is:
-
-`obj = ((g20DF278 XOR 0x10ADFFD4851EEA22) - g20DF278 + 0x5488CB87A2C1A6B0) XOR g218B878`
-
-The critical dword is `object+0x2C`.
-
-The fatal frame established:
-
-- `decodedStored = frame[0x40] XOR frame[0x4C]`
-- `elapsed = frame[0x48] - decodedStored`
-- `frame[0xA0] == elapsed`
-- `threshold = frame[0xA8] - frame[0xA4]`
-- `threshold == 0x7530 == 30000 ms`
-- the fatal branch is taken when `frame[0xA0] >= threshold`
-
-Across validation runs, `frame[0x4C]` was `0xFF391B88`, and the live field decodes as:
-
-`storedTick = object+0x2C XOR 0xFF391B88`
-
-The decoded value tracks the Windows millisecond tick counter.
-
-The object is additionally guarded by the observed `object+0x60` signature:
-
-`object+0x60 XOR 0x2FE40E77 == 0x00000909`
-
-## 5. Why the one-shot v1.1 prototype was insufficient
-
-A one-time refresh after certificate call #1 allowed the game to pass the initial online transition, complete significantly more navigation and begin downloading a map.
-
-However, once the injected timestamp itself aged past 30 seconds, the fatal frame again captured the stale timestamp before the game's own later update. One validated failure showed:
-
-- stored timestamp age in fatal frame: `38423 ms`
-- threshold: `30000 ms`
-- branch relation: true
-
-The game's own writer refreshed `object+0x2C` shortly afterward, but by then the stale value had already been copied into the fatal frame.
-
-## 6. v1.1 heartbeat correction
-
-The final v1.1 runtime keeps the same exact-hash / object-signature guards and maintains the encoded timebase with a large margin below the fatal threshold.
-
-Startup:
-
-1. translated certificate call #1 succeeds;
-2. the regenerated object and signature are validated;
-3. if the decoded timestamp is plausibly recent, the launcher writes `GetTickCount() XOR 0xFF391B88` to `object+0x2C`;
-4. the four-byte write is immediately read back and verified;
-5. translated certificate call #2 succeeds;
-6. the original IAT is restored and the hook page is freed;
-7. an 8-second stabilization window is kept before READY.
-
-Runtime:
-
-- approximately every 250 ms, the object/signature are revalidated;
-- if decoded age is below 10,000 ms, no write occurs;
-- when decoded age reaches 10,000 ms, exactly four process-local data bytes are refreshed;
-- decoded ages above 120,000 ms fail closed instead of being blindly rewritten;
-- every write receives an immediate readback check.
-
-No `war3_loader` code byte is patched.
-
-## 7. Validation
-
-The diagnostic heartbeat test ran for approximately 930.94 seconds after the certificate stage and performed 92 guarded refreshes without a fatal hang. During that session the user completed an online map download, left the lobby flow, created a private online game, played the game to completion, and exited normally.
-
-A release-candidate cleanup run then validated normal shutdown handling without a false error:
-
-`WARCRAFT_EXIT=True ... teardownRaceHandled=False`
-
-## 8. v1.0 performance pulse
-
-The old v1.0 release retained a separate read-only ~1 ms `ReadProcessMemory` pulse because it subjectively improved responsiveness on the earlier build.
-
-That pulse is not part of v1.1. The October update changed the runtime path and the new heartbeat mechanism was validated independently. v1.1 avoids retaining an unrelated experimental behavior that was not revalidated on the new build.
-
-## 9. Cleanup and lifetime
-
-The Windows provider DLLs are persistent components and require explicit installation/removal plus a reboot when their state changes.
-
-The certificate hook and timebase writes are process-local. The IAT hook is removed during startup, the private hook page is freed, and all process-memory changes disappear when Warcraft exits. No Warcraft file is rewritten.
-
-## 10. World Editor v1.1
-
-The October 2026 World Editor binaries validated for this helper are:
-
-- `World Editor.exe`: `f46f0a72d32cbdd366f4a0f7de54d35ad2ccad9d00e23749269910afd75c34e3`
-- `worldedit_loader.dll`: `aefd841b006117d11582b018031fe9d7a2c8f48150c688e54f1c64b7f66c67cd`
-
-Static comparison showed the relevant October `worldedit_loader.dll` loader implementation uses the same regenerated encoded-timebase path validated for Warcraft III v1.1. The World Editor helper therefore uses the same guarded runtime policy:
-
-- decode and validate the regenerated object;
-- require the observed `object+0x60 -> 0x909` signature;
-- decode `object+0x2C` with the validated `0xFF391B88` key;
-- keep decoded age below the 30,000 ms fatal threshold;
-- check approximately every 250 ms and write only at 10,000 ms age;
-- write exactly four process-local data bytes and verify each write immediately.
-
-The World Editor helper does **not** depend on Battle.net. Battle.net may be open or closed.
-
-The bundled `dummy.w3m` is a launch target for the normal Windows `.w3m` ShellOpen path. This avoids directly starting `World Editor.exe`, which followed a different startup path on the validated system. After the helper reports READY, any other map may be opened inside the same World Editor process.
-
-The validation run began with a naturally fresh timestamp (`46 ms` old), performed 8 guarded heartbeat refreshes over approximately 90.9 seconds, reported no hung-window state, and ended with a normal process exit.
+Do not reuse the old `war3_loader` or `worldedit_loader` hash, the old +0x2C offsets, or old C256 +0x707 condition. The separate 3.0.1 binary signatures are deliberately fail-closed. The persistent provider binaries were preserved unchanged. A direct archive integrity verifier is provided to detect incomplete file transfers without using a newer version of PowerShell.

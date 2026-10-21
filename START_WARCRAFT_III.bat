@@ -5,10 +5,10 @@ set "PS=%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if defined PROCESSOR_ARCHITEW6432 set "PS=%WINDIR%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
 set "HASHSTATE=%ROOT%Tools\HashState.ps1"
 set "REGSTATE=%ROOT%Tools\ProviderRegistrationState.ps1"
-set "RUNTIME=%ROOT%Runtime\War3_Win7_Online_Fix_v1.1.bat"
+set "RUNTIME=%ROOT%Runtime\War3_Win7_Online_Fix_v1.2.bat"
 set "X64INST=%WINDIR%\System32\War3Win7BattleNetCompat.dll"
 set "X86INST=%WINDIR%\SysWOW64\War3Win7BattleNetCompat.dll"
-title Warcraft III 3.0 Windows 7 Compatibility Pack v1.1
+title Warcraft III 3.0.1 Windows 7 Compatibility Pack v1.2
 
 for %%P in ("Hide.me.exe") do (
   tasklist /FI "IMAGENAME eq %%~P" 2>NUL | find /I "%%~P" >NUL
@@ -37,7 +37,7 @@ if errorlevel 1 (
   pause
   exit /b 22
 )
-"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%RUNTIME%" -Expected "9209ca2149eeb550d4ab00aa597c5660208481c16c76fb57b2ad906ec54e2592"
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%RUNTIME%" -Expected "670cbf0548a080586bcec82f2ed3d90b81c499a81795cd059f931ce677694089"
 if not "%ERRORLEVEL%"=="10" (
   echo ERROR: runtime launcher integrity check failed.
   pause

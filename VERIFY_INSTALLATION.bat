@@ -6,7 +6,7 @@ if defined PROCESSOR_ARCHITEW6432 set "PS=%WINDIR%\Sysnative\WindowsPowerShell\v
 set "HASHSTATE=%ROOT%Tools\HashState.ps1"
 set "REGSTATE=%ROOT%Tools\ProviderRegistrationState.ps1"
 set "PASS=1"
-title Warcraft III 3.0 Win7 Compatibility Pack v1.1 - verify
+title Warcraft III 3.0.1 Win7 Compatibility Pack v1.2 - verify
 
 echo.
 echo Installed-provider verification
@@ -20,7 +20,13 @@ echo.
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%REGSTATE%"
 if errorlevel 1 set "PASS=0"
 echo.
-"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%ROOT%Runtime\War3_Win7_Online_Fix_v1.1.bat" -Expected "9209ca2149eeb550d4ab00aa597c5660208481c16c76fb57b2ad906ec54e2592"
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%ROOT%Runtime\War3_Win7_Online_Fix_v1.2.bat" -Expected "670cbf0548a080586bcec82f2ed3d90b81c499a81795cd059f931ce677694089"
+if not "%ERRORLEVEL%"=="10" set "PASS=0"
+echo.
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%ROOT%War3_3.0.1_WorldEditor_Win7_Fix_v1.2\START_WORLD_EDITOR_FIXED.bat" -Expected "dd2cf5526a005606727a71e0da01ba086200e823230da0dcdddb3f1b8499fcb6"
+if not "%ERRORLEVEL%"=="10" set "PASS=0"
+echo.
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%HASHSTATE%" -Path "%ROOT%War3_3.0.1_WorldEditor_Win7_Fix_v1.2\dummy.w3m" -Expected "77b4313c9a7498eb3a49a7b4228885f8080b61a369006888c29e5486a8533088"
 if not "%ERRORLEVEL%"=="10" set "PASS=0"
 echo.
 if "%PASS%"=="1" (
