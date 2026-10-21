@@ -72,6 +72,12 @@ jobs:
           print(f"SHA-256: {digest}")
           PY
 
+      - name: Refresh v1.1 tag to the packaging-fix commit
+        shell: bash
+        run: |
+          git tag -f v1.1 "$GITHUB_SHA"
+          git push origin refs/tags/v1.1 --force
+
       - name: Create or refresh GitHub release v1.1
         shell: bash
         env:
