@@ -31,6 +31,8 @@ The persistent provider installation is needed for the Battle.net/Warcraft path,
 
 The helper tries the `WAR3_ROOT` environment variable, Warcraft III uninstall registry keys, and common locations. If detection fails, edit `War3_3.0.1_WorldEditor_Win7_Fix_v1.2/WorldEditorFix.ini` and set the `WorldEditorPath` manually. The helper never modifies a map or game DLL on disk.
 
+`VERIFY_PACKAGE.bat` permits a personalized **`WorldEditorPath=` value** in that INI: it still checks every other byte of the original configuration template and all the other files against `SHA256SUMS.txt`. The message `CONFIG OVERRIDE ACCEPTED` is expected for an edited path; changes to any other INI content still fail verification. The release ZIP itself is checked against the pristine original INI.
+
 ## Supported exact Blizzard binary hashes (SHA-256)
 
 | File | Required SHA-256 |

@@ -2,6 +2,38 @@
 # The proof file is created only AFTER every SHA-256 verification succeeds.
 param([string]$SuccessFile)
 $ErrorActionPreference='Stop'
+# The installer permits one user-editable field in WorldEditorFix.ini.
+# On mismatch, erase only that field's VALUE in memory, then hash all other bytes.
+# The original INI template hash remains in SHA256SUMS.txt.
+function Get-WorldEditorIniTemplateHash {
+    param([string]$Path, $Hasher)
+    [byte[]]$data=[IO.File]::ReadAllBytes($Path)
+    [byte[]]$key=[Text.Encoding]::ASCII.GetBytes('WorldEditorPath=')
+    $found=0
+    $valueStart=-1
+    $valueEnd=-1
+    for($i=0; $i -le ($data.Length - $key.Length); $i++) {
+        if(($i -gt 0) -and ($data[$i - 1] -ne 10)) { continue }
+        $matchKey=$true
+        for($j=0; $j -lt $key.Length; $j++) {
+            if($data[$i + $j] -ne $key[$j]) { $matchKey=$false; break }
+        }
+        if(-not $matchKey) { continue }
+        $found++
+        $valueStart=$i + $key.Length
+        $valueEnd=$valueStart
+        while(($valueEnd -lt $data.Length) -and
+              ($data[$valueEnd] -ne 10) -and ($data[$valueEnd] -ne 13)) {
+            $valueEnd++
+        }
+    }
+    if($found -ne 1) { return $null }
+    $length=$data.Length - ($valueEnd - $valueStart)
+    [byte[]]$normalized=[Array]::CreateInstance([byte],$length)
+    [Array]::Copy($data,0,$normalized,0,$valueStart)
+    [Array]::Copy($data,$valueEnd,$normalized,$valueStart,$data.Length - $valueEnd)
+    return ([BitConverter]::ToString($Hasher.ComputeHash($normalized))).Replace('-','').ToLowerInvariant()
+}
 $sha=$null
 $verified=$false
 try {
@@ -53,8 +85,20 @@ try {
             if($fs -ne $null) { $fs.Dispose() }
         }
         if($actual -ne $expected) {
-            Write-Host ('HASH MISMATCH: '+$rel)
-            $failed++
+            $allowedIniChange=$false
+            if($rel -ceq 'War3_3.0.1_WorldEditor_Win7_Fix_v1.2/WorldEditorFix.ini') {
+                $normalizedHash=Get-WorldEditorIniTemplateHash -Path $path -Hasher $sha
+                if($normalizedHash -eq $expected) {
+                    $allowedIniChange=$true
+                    Write-Host ('CONFIG OVERRIDE ACCEPTED: '+$rel+' (WorldEditorPath only)')
+                }
+            }
+            if($allowedIniChange) {
+                $checked++
+            } else {
+                Write-Host ('HASH MISMATCH: '+$rel)
+                $failed++
+            }
         } else {
             $checked++
         }

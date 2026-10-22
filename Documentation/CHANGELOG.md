@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2 INI verification hotfix — 2026-10-22
+
+- Corrected a false package integrity failure after a user follows the documented World Editor setup and edits `WorldEditorPath=` in `WorldEditorFix.ini`.
+- The verifier still compares the original INI template SHA-256 after normalizing *only* that field's value in memory. All other INI bytes and the other 33 payload files remain protected; the pristine release ZIP is hash-checked without any exception.
+- Displays `CONFIG OVERRIDE ACCEPTED` for a valid personalized path and continues to fail closed on unexpected edits.
+- No changes to the game/editor compatibility fixes or x64/x86 provider binaries.
+
 ## v1.2 — 2026-10-22 — Windows 7 validation and GitHub release
 
 - The project tester confirmed the fully assembled RC3 pack works on the supported Windows 7 system.

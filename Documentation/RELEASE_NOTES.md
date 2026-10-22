@@ -7,3 +7,5 @@ The Warcraft runtime is based on TIMEBASE_HEARTBEAT_TEST_v7b: unchanged ClientSd
 The World Editor is based on TEST4, validated 2026-10-22: 10 verified writes over 110.9 seconds and normal user interaction. The integrated helper contains dummy.w3m and starts by ShellOpen. No Battle.net dependency.
 
 Validation: the project tester confirmed the complete RC3 archive and its integrity checker work on Windows 7 SP1 x64 on October 22, 2026. TEST4 previously recorded 10 successful World Editor timebase refreshes across 110.9 seconds. This is not proof of compatibility on any other Windows build or with later Blizzard patches.
+
+Verification hotfix (October 22, 2026): `VERIFY_PACKAGE.bat` now accepts a modified `WorldEditorPath=` value in the bundled `WorldEditorFix.ini`, while validating all other INI bytes and the remaining package files against their manifest hashes. The packaged INI remains pristine and the game/editor fixes and providers are unchanged.

@@ -23,15 +23,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Restore validated v1.2 files and verify 34 payload checksums
+      - name: Verify tracked v1.2 files and 34 SHA-256 checks
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/v1.2-payload/part*.txt | base64 --decode > /tmp/war3-win7-v1.2.tar.xz
-          echo "f557ef6ad7406fc4366c59dedc0de630def0870e3cf3c0542b8d9fe2917d2c58  /tmp/war3-win7-v1.2.tar.xz" | sha256sum --check --status
-          tar -xJf /tmp/war3-win7-v1.2.tar.xz
-          mkdir -p War3_3.0.1_WorldEditor_Win7_Fix_v1.2
-          # v1.2 dummy.w3m is tracked in this branch; do not depend on obsolete v1.1 sources
           test -f War3_3.0.1_WorldEditor_Win7_Fix_v1.2/dummy.w3m
           sha256sum --check SHA256SUMS.txt
           python3 - <<'PY'
@@ -41,18 +36,6 @@ jobs:
           assert 'War3_3.0.1_WorldEditor_Win7_Fix_v1.2/dummy.w3m' in paths
           print('PACKAGE_VERIFICATION_OK filesOK=34 problems=0')
           PY
-
-      - name: Commit validated v1.2 source files to main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add README.md INSTALL.bat REMOVE.bat START_WARCRAFT_III.bat START_WORLD_EDITOR_FIXED.bat VERIFY_INSTALLATION.bat VERIFY_PACKAGE.bat SHA256SUMS.txt Documentation Runtime Tools War3_3.0.1_WorldEditor_Win7_Fix_v1.2
-          if ! git diff --cached --quiet; then
-            git commit -m 'Release v1.2: Warcraft III 3.0.1.24371 and World Editor Windows 7 fixes'
-            git push origin HEAD:main
-          fi
 
       - name: Build complete v1.2 ZIP and checksum
         shell: bash

@@ -14,6 +14,10 @@ This is a standalone helper: Battle.net need not be running.
 If auto-detection fails, set WorldEditorPath= to the complete exe path in
 WorldEditorFix.ini. You may also set WAR3_ROOT to the Warcraft III folder.
 
+VERIFY_PACKAGE.bat accepts a customized WorldEditorPath= value in the INI.
+It checks the rest of the INI against the original template and continues
+to reject unexpected changes to other pack files.
+
 The helper validates hashes and two probes of the decoded object,
 including the low byte of object+0x68 and stable object+0x70 field. It
 refreshes the encoded timestamp at object+0x6C only when age reaches 10 s,
